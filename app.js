@@ -16,14 +16,12 @@ const nodes = {
   statusBadge: document.querySelector("#statusBadge"),
   traceIntent: document.querySelector("#traceIntent"),
   traceMode: document.querySelector("#traceMode"),
-  traceConfidence: document.querySelector("#traceConfidence"),
   traceGuardrail: document.querySelector("#traceGuardrail"),
   traceSensitive: document.querySelector("#traceSensitive"),
   traceProfile: document.querySelector("#traceProfile"),
   traceMissing: document.querySelector("#traceMissing"),
   traceFrame: document.querySelector("#traceFrame"),
   profileSummary: document.querySelector("#profileSummary"),
-  reviewScore: document.querySelector("#reviewScore"),
   reviewMeta: document.querySelector("#reviewMeta"),
   reviewChecks: document.querySelector("#reviewChecks")
 };
@@ -86,30 +84,30 @@ async function loadHealth() {
 
 function renderHealth(data) {
   if (!data) {
-    nodes.statusBadge.textContent = "状态暂不可读";
+    nodes.statusBadge.textContent = "服务已开启";
     nodes.statusBadge.className = "status-badge muted";
-    nodes.healthHint.textContent = "服务已启动，但当前无法读取模型状态。你仍然可以先试提问。";
+    nodes.healthHint.textContent = "你可以直接描述当前遇到的问题，我们会先帮你梳理事项、资料和风险。";
     return;
   }
 
   if (data.hasApiKey) {
-    nodes.statusBadge.textContent = "智能分析已启用";
+    nodes.statusBadge.textContent = "服务已就绪";
     nodes.statusBadge.className = "status-badge live";
-    nodes.healthHint.textContent = `当前已连接 ${data.modelName}。适合继续做复杂问题梳理、材料初稿和结构化建议输出。`;
+    nodes.healthHint.textContent = "适合继续咨询政策方向、融资准备、资料整理、风险识别和经营问题。";
     return;
   }
 
-  nodes.statusBadge.textContent = "基础模式";
+  nodes.statusBadge.textContent = "服务已就绪";
   nodes.statusBadge.className = "status-badge";
-  nodes.healthHint.textContent = `当前处于基础模式，仍可先梳理政策方向、材料清单、合规风险和下一步动作。`;
+  nodes.healthHint.textContent = "你可以先梳理政策方向、资料清单、风险提醒和下一步动作，再逐步补充情况。";
 }
 
 function addWelcomeMessage() {
   const opening = state.health?.hasApiKey
-    ? "你好，这里是面向小微企业的服务助手。你可以直接描述经营、政策、融资准备、材料起草或风险识别问题，我会先帮你把事实、路径和边界理清楚。"
-    : "你好，这里是面向小微企业的服务助手。当前处于基础模式，但仍然可以先帮你梳理事项方向、资料清单、风险提醒和下一步动作。";
+    ? "你好，这里是面向小微企业的服务助手。你可以直接描述经营、政策、融资准备、材料起草或风险识别问题，我们会先帮你把事实、路径和边界理清楚。"
+    : "你好，这里是面向小微企业的服务助手。你可以先描述经营情况、用途、已有材料和顾虑，我们会先帮你梳理事项方向、资料清单、风险提醒和下一步动作。";
 
-  addMessage("assistant", `${opening}\n\n你不需要先懂金融术语，也不需要提交敏感信息。只要把业务场景、用途、已有材料和当前困难说清楚，就能开始。`);
+  addMessage("assistant", `${opening}\n\n你不需要先准备完整材料，也不需要提交敏感信息。只要把业务场景、用途、已有材料和当前困难说清楚，就可以开始。`);
 }
 
 async function runSkill(question) {
@@ -160,11 +158,10 @@ function getProfile() {
 
 function renderTrace(data) {
   const checks = data.review?.checks || [];
-  const passedCount = checks.filter((item) => item.passed).length;
+  const notes = buildServiceNotes(data, checks);
 
   nodes.traceIntent.textContent = data.trace?.intentTitle || data.moduleTitle || "待识别";
   nodes.traceMode.textContent = modeLabel(data.mode, data.model);
-  nodes.traceConfidence.textContent = data.trace?.confidence || "-";
   nodes.traceGuardrail.textContent = data.trace?.guardrail || "-";
   nodes.traceSensitive.textContent = data.trace?.sensitive || "-";
   nodes.traceProfile.textContent = data.trace?.profileCompleteness || "-";
@@ -174,10 +171,9 @@ function renderTrace(data) {
       : ["基础概况已较完整，可继续补充金额区间、材料类型或当前困难。"]
   );
   nodes.traceFrame.innerHTML = renderTagList(data.trace?.outputFrame || []);
-  nodes.reviewScore.textContent = data.review?.score ? `${data.review.score} 分` : "-";
-  nodes.reviewMeta.textContent = checks.length ? `通过 ${passedCount}/${checks.length} 项` : "暂无检查结果";
-  nodes.reviewChecks.innerHTML = checks.map((item) => (
-    `<div class="check"><span>${escapeHtml(item.name)}</span><strong class="${item.passed ? "pass" : "warn"}">${item.passed ? "通过" : "待补强"}</strong></div>`
+  nodes.reviewMeta.textContent = data.mode === "guardrail" ? "本次问题已触发风险保护" : "以下内容供你理解本次服务边界";
+  nodes.reviewChecks.innerHTML = notes.map((item) => (
+    `<div class="check"><span>${escapeHtml(item.name)}</span><strong class="${item.passed ? "pass" : "warn"}">${item.passed ? "已覆盖" : "需留意"}</strong></div>`
   )).join("");
 }
 
@@ -212,9 +208,9 @@ function renderTagList(items) {
 }
 
 function modeLabel(mode, model) {
-  if (mode === "model") return `智能分析 · ${model || "已连接模型"}`;
-  if (mode === "runtime-fallback") return "基础模式 · 规则梳理";
-  if (mode === "guardrail") return "合规保护 · 已拦截高风险请求";
+  if (mode === "model") return "综合咨询整理";
+  if (mode === "runtime-fallback") return "基础事项梳理";
+  if (mode === "guardrail") return "风险保护提示";
   return mode || "-";
 }
 
@@ -292,7 +288,29 @@ function formatMarkdown(text) {
 
 function setLoading(isLoading) {
   nodes.askButton.disabled = isLoading;
-  nodes.askButton.textContent = isLoading ? "整理中..." : "开始梳理";
+  nodes.askButton.textContent = isLoading ? "整理中..." : "获取建议";
+}
+
+function buildServiceNotes(data, checks) {
+  const hasNextStep = checks.find((item) => item.name === "可执行动作")?.passed;
+  const hasBoundary = checks.find((item) => item.name === "合规边界")?.passed;
+  const hasStructure = checks.find((item) => item.name === "结构化输出")?.passed;
+  const blocked = data.mode === "guardrail";
+
+  return [
+    {
+      name: blocked ? "已识别到高风险请求，并给出可替代的安全方向" : "本次回答已尽量围绕你的问题给出下一步动作",
+      passed: blocked || hasNextStep
+    },
+    {
+      name: "本次回答已提示哪些内容需要以正式机构、合同或官方口径为准",
+      passed: hasBoundary
+    },
+    {
+      name: "本次建议按事项、材料、风险和后续动作进行了整理",
+      passed: hasStructure
+    }
+  ];
 }
 
 function escapeHtml(value) {

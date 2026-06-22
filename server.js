@@ -141,8 +141,8 @@ async function handleSkillRun(req, res) {
   if (!MODEL_API_KEY) {
     const reply = `${buildRuntimeReply({ userText, activeModule, profile, sensitive })}
 
-## 模型配置提醒
-当前还没有配置 \`DEEPSEEK_API_KEY\`，所以这是规则兜底输出。补上环境变量后，就会改为真实模型回答。`;
+## 服务说明
+当前先以基础咨询模式提供服务，重点帮助你梳理事项、资料、风险和下一步动作。你可以继续补充地区、行业、经营阶段、用途或已有材料，让建议更贴近实际。`;
 
     return sendJson(res, 200, {
       reply,
