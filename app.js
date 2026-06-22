@@ -301,7 +301,7 @@ function renderHero() {
   renderHealth(state.health);
 
   if (needsOnboarding() || isOnboardingActive()) {
-    nodes.heroTitle.textContent = "先用 4 个问题建立企业档案，后续建议直接结合你的企业情况";
+    nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
     nodes.composerTip.textContent = isOnboardingActive()
       ? `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`
       : "先建立企业档案，后续问题就不需要重复介绍背景。";
@@ -309,7 +309,7 @@ function renderHero() {
     return;
   }
 
-  nodes.heroTitle.textContent = "企业背景已记住。接下来直接说问题，我会给你结构化结果";
+  nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
   nodes.composerTip.textContent = "你可以直接说场景、用途、已有材料和顾虑，我会按结构化方式替你整理。";
   nodes.askButton.textContent = "获取建议";
 }

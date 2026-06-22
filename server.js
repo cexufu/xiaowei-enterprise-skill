@@ -234,6 +234,7 @@ function buildModelPrompt({ userText, activeModule, profile, memory, sensitive }
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n") || "用户暂未填写企业概况。";
   const memoryText = buildMemoryPrompt(memory);
+  const moduleExpertInstructions = buildModuleExpertInstructions({ activeModule, userText, profile, memory });
 
   return `
 当前识别模块：${moduleInfo.title}
@@ -244,12 +245,16 @@ ${profileText}
 已记录的长期背景与近期沟通：
 ${memoryText}
 
+模块专业要求：
+${moduleExpertInstructions}
+
 ${sensitive ? "用户问题可能涉及敏感信息，请提醒不要继续提供身份证号、银行卡号、完整征信、完整流水、验证码或账户密码。" : ""}
 
 输出要求：
 - 默认把已记录的企业背景作为当前问题的出发点，不要重新要求用户重复介绍已知信息。
 - 如果关键信息仍不足，最多只追问 1 到 2 个最关键的问题。
 - 建议必须尽量贴合企业背景、主要困境、当前目标和已有资源，避免泛泛而谈。
+- 不要停留在“咨询银行、准备资料、注意风险”这种泛化层面，要指出具体属于什么场景、为什么、应核验什么。
 - 严格使用二级标题 ## 组织输出。
 - 默认使用以下结构：## 先给结论 / ## 你现在可以做什么 / ## 需要准备的材料/信息 / ## 风险提醒 / ## 下一步。
 - 如确有必要，可额外增加一个模块专属部分，但总 section 不超过 6 个。
@@ -278,55 +283,71 @@ function loadSkillInstructions() {
 function buildRuntimeReply({ userText, activeModule, profile, memory, sensitive }) {
   const context = summarizeBusinessContext(profile, memory);
   const specificFocus = buildSpecificFocus(activeModule, memory, profile, userText);
+  const financingScenario = detectFinancingScenario([
+    userText,
+    memory.core.currentGoal,
+    profile.资金用途,
+    memory.core.mainChallenges,
+    profile.当前困难
+  ].filter(Boolean).join(" "));
+  const financingPaths = buildFinancingPathHints(financingScenario.label);
+  const publicPracticeNote = buildPublicPracticeRuntimeNote(activeModule, userText);
 
   const builders = {
     policy() {
+      const policyFocus = /融资|贴息|担保|贷款|周转/.test(`${userText} ${memory.core.currentGoal || ""}`)
+        ? "尤其把贴息、创业担保贷款、政策性融资担保和税费优惠分开核验，不要混成一类。"
+        : "优先分清税费优惠、稳岗用工、数字化改造、设备更新和区域专项扶持这几类政策。";
+
       return `
 ## 先给结论
-基于「${context}」，先做政策方向梳理和官方核验，比先判断能不能申报更有价值。
+基于「${context}」，先做“政策方向分类 + 官方入口核验”，比直接判断“能不能拿到”更有价值。
 
 ## 你现在可以做什么
-- 先查当地政务服务网、人社、工信、税务、市场监管等官方渠道。
-- 建一张政策核验表：政策名、申报主体、材料、时间、主管部门。
-- 重点关注小微企业、创业担保贷款、补贴、税费优惠、设备更新、数字化改造。
+- 先按政策类型分篮子排查：税费优惠、稳岗/就业扶持、数字化改造、设备更新、融资支持。
+- 优先查 ${memory.core.region || profile.地区 || "经营所在地"} 的政务服务网、人社、工信、税务、市场监管等官方渠道。
+- 建一张政策核验表：政策名称、适用主体、时间窗口、材料、主管部门、官方入口。
 
 ## 需要准备的材料/信息
 - 营业执照、经营地址、成立时间。
 - 纳税、开票、社保或用工记录。
-- 订单、合同、经营情况说明。
+- 订单、合同、经营情况说明，以及与申报事项相关的设备、研发、培训或用工证明。
 
 ## 风险提醒
-政策会随地区和时间变化，建议以官方页面和主管部门口径为准。
+政策会随地区和时间变化，建议以官方页面和主管部门口径为准。${policyFocus}
 
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
 
 ` : ""}## 下一步
-告诉我所在城市和企业阶段，我可以继续给你做一张政策核验清单。`.trim();
+告诉我所在城市、企业阶段和这次最想争取的事项，我可以继续给你做一张更具体的政策核验清单。`.trim();
     },
     financing() {
       return `
 ## 先给结论
-基于「${context}」，这个问题应先做融资准备，不应直接问额度、利率或通过率。
+基于「${context}」，这个需求更像“${financingScenario.label}”场景，应该先做融资准备，不应直接问额度、利率或通过率。
 
 ## 你现在可以做什么
-- 明确资金用途和回款来源。
-- 整理真实经营材料、订单合同、发票和流水概览。
-- 对照创业担保贷款、经营性信用贷、抵押贷、供应链金融等路径做初筛。
+- 先把 3 件事说清楚：资金具体用在哪里、预计使用多久、主要靠什么回款。
+- 优先从正规路径做初筛：${financingPaths.join("、")}。
+- 材料按 4 组整理：主体合规、经营痕迹、回款来源、增信要素。
 
 ## 需要准备的材料/信息
-- 营业执照和经营年限。
-- 订单、合同、发票、纳税记录。
-- 用途说明、金额区间、使用周期。
+- 主体合规：营业执照、经营年限、实际经营地、基础经营说明。
+- 经营痕迹：订单、合同、发票、纳税记录、对公流水概况或交易留痕。
+- 回款来源：客户结构、账期、回款节奏、应收账款或交付节点说明。
+- 增信要素：设备、房产、担保、核心客户、稳定渠道等可证明稳定经营的要素。
 
 ## 风险提醒
-以上仅用于融资准备和信息梳理，不构成贷款承诺或金融建议。具体额度、费率、审批结果和服务条款，以持牌机构审核、合同约定和官方政策为准。
+- 不要只看单一利率，要看综合融资成本，尤其是服务费、担保费、保险费、咨询费或会员费是否另收。
+- 提前还款、自动续借、自动扣款、征信与数据授权、保证责任和逾期条款都要提前核验。
+- 以上仅用于融资准备和信息梳理，不构成贷款承诺或金融建议。具体额度、费率、审批结果和服务条款，以持牌机构审核、合同约定和官方政策为准。
 
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
 
 ` : ""}## 下一步
-你可以继续让我生成“融资准备清单”或“贷款用途说明”。`.trim();
+如果你愿意，我下一轮可以直接按“${financingScenario.label}”给你生成融资准备清单，或者起草一版贷款用途说明。`.trim();
     },
     document() {
       return `
@@ -354,25 +375,27 @@ ${specificFocus}
     compliance() {
       return `
 ## 先给结论
-这个问题优先看风险和核验动作，不要先看话术是否“听起来像真的”。
+这个问题优先看“资质、收费、条款、授权、逾期”这几个风险点，不要先看话术是否“听起来像真的”。
 
 ## 你现在可以做什么
-- 核验对方是否为持牌机构或正式合作渠道。
-- 要求查看合同、综合融资成本和收费依据。
-- 不先转账、不发验证码、不提交敏感信息。
+- 核验对方是否为持牌机构或正式合作渠道，先留主体名称、官网或备案信息。
+- 要求把费用拆开说明：利息、服务费、担保费、保险费、咨询费、会员费分别是什么。
+- 只摘录与费用、提前还款、自动扣款、征信授权、保证责任相关的条款来核验，不先转账、不发验证码。
 
 ## 需要准备的材料/信息
-- 对方宣传语原文。
-- 收费项目、合同条款、联系渠道。
+- 对方宣传语或聊天话术原文。
+- 收费项目、合同相关条款片段、联系渠道或落地页信息。
+- 对方自称的机构名称、收费节点和放款前后顺序。
 
 ## 风险提醒
-出现“保证放款、先收费、低息秒批、包装材料”等表述时，应高度谨慎。
+出现“保证放款、先收费、低息秒批、内部通道、包装材料”等表述时，应高度谨慎。
+- 重点核验综合融资成本、提前还款违约金、自动续借/自动分期、征信与数据授权、连带责任保证以及逾期处置条款。
 
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
 
 ` : ""}## 下一步
-去掉个人信息后把原文贴出来，我可以继续逐条标注风险。`.trim();
+去掉个人信息后，把宣传语或相关条款片段贴出来，我可以继续按“风险点 / 为什么 / 替代动作”逐条标注。`.trim();
     },
     operations() {
       return `
@@ -401,22 +424,25 @@ ${specificFocus}
     cases() {
       return `
 ## 先给结论
-案例只能作为公共服务和方法参考，不能写成品牌导流。
+案例应先写小微企业遇到的问题和服务动作，品牌只能作为公开实践补充，不能抢占主线。
 
 ## 你现在可以做什么
-- 用“服务对象、服务动作、可借鉴点、边界”四段写案例。
-- 强调帮助用户理解政策、准备材料、识别风险，而不是推荐品牌。
+- 用“服务对象、问题背景、服务动作、可借鉴点、边界”五段写案例。
+- 重点写清楚如何帮助用户理解政策、准备材料、识别融资风险，而不是推荐品牌。
+- 如需加入金融科技样本，只放在结尾一小段，作为公开实践参考。
 
 ## 需要准备的材料/信息
 - 案例背景。
 - 服务动作。
-- 公开可引用的事实。
+- 公开可引用的事实，尤其是流程、方法、公开披露的能力方向。
 
 ## 风险提醒
-不要承诺额度、利率、审批结果，不要把案例写成招商或导流文案。
+不要承诺额度、利率、审批结果，不要把案例写成招商、导流或效果背书文案。
 
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
+
+` : ""}${publicPracticeNote ? `${publicPracticeNote}
 
 ` : ""}## 下一步
 如果你给我一个具体案例方向，我可以帮你整理成对外可用表达。`.trim();
@@ -442,6 +468,8 @@ ${specificFocus}
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
 
+` : ""}${publicPracticeNote ? `${publicPracticeNote}
+
 ` : ""}## 下一步
 我可以继续直接生成一套平台发布文案。`.trim();
     }
@@ -464,6 +492,104 @@ ${specificFocus}
   }
 
   return reply.trim();
+}
+
+function buildModuleExpertInstructions({ activeModule, userText, profile, memory }) {
+  const goal = memory.core.currentGoal || profile.资金用途 || "";
+  const challenge = memory.core.mainChallenges || profile.当前困难 || "";
+  const scenario = detectFinancingScenario([userText, goal, challenge].join(" "));
+  const publicPracticePromptNote = buildPublicPracticePromptNote(activeModule, userText);
+
+  const sharedRules = [
+    "- 回答要像小微信贷准备顾问或政策辅导员，不要像泛化聊天助手。",
+    "- 如果能直接判断场景，就先下场景判断，再给步骤。",
+    "- 每次回答至少给 2 到 4 个可执行动作，避免空泛表述。"
+  ];
+
+  const moduleRules = {
+    policy: [
+      "- 先区分政策类别，再给核验入口，不要把不同类型政策混成一类。",
+      "- 如涉及融资支持，要区分贴息、创业担保贷款、政策性融资担保、税费优惠。",
+      "- 回答里要明确哪些信息需要以当地官方渠道二次核验。"
+    ],
+    financing: [
+      `- 当前优先按“${scenario.label}”场景理解用户问题，并解释这个判断与资金用途、使用周期、回款来源的关系。`,
+      `- 正规融资路径只给类别，不给具体机构推荐。当前可优先考虑：${buildFinancingPathHints(scenario.label).join(" / ")}。`,
+      "- 材料必须拆成 4 组：主体合规、经营痕迹、回款来源、增信要素。",
+      "- 至少点名 3 个条款核验点：综合融资成本、额外收费、提前还款、自动扣款、征信与数据授权、保证责任、逾期条款。",
+      "- 不要只说“准备营业执照和流水”，要说明这些材料分别在证明什么。"
+    ],
+    document: [
+      "- 初稿只基于真实经营事实展开，缺失信息统一用【待确认】标记。",
+      "- 与融资有关的材料，要把用途、周期、回款来源写清楚。",
+      "- 不虚构订单、发票、流水、纳税和客户信息。"
+    ],
+    compliance: [
+      "- 风险判断优先按资质、收费、合同、授权、逾期 5 个维度拆解，至少覆盖其中 3 项。",
+      "- 如果用户贴宣传话术，要指出具体风险词，而不是只给笼统提醒。",
+      "- 如果用户贴合同，只核验相关条款片段，并提醒不要发送整份敏感合同。"
+    ],
+    operations: [
+      "- 优先给现金流、库存、回款、客户、留痕管理等基础动作。",
+      "- 不做深度财务分析，不装成 CFO。"
+    ],
+    cases: [
+      "- 先写小微企业问题与服务动作，再写案例归纳和风险边界。",
+      "- 如需加入品牌案例，只能作为公开实践参考，不能导流。"
+    ],
+    publish: [
+      "- 对外名称、简介、关键词都要突出小微企业公共服务属性。",
+      "- 不要写成贷款广告或品牌招商文案。"
+    ]
+  };
+
+  return [...sharedRules, ...(moduleRules[activeModule] || moduleRules.financing), publicPracticePromptNote]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function detectFinancingScenario(text) {
+  const normalized = String(text || "");
+  const rules = [
+    ["回款型周转", /回款|账期|应收|拖款|账款|尾款/],
+    ["订单履约", /订单|履约|交付|项目|投标|垫资/],
+    ["备货采购", /备货|采购|原材料|进货|囤货|旺季/],
+    ["设备投入", /设备|机器|产线|厂房|装修|固定资产/],
+    ["临时垫付", /工资|薪资|社保|房租|租金|税费|发薪/]
+  ];
+
+  const matched = rules.find(([, pattern]) => pattern.test(normalized));
+  return { label: matched ? matched[0] : "一般经营周转" };
+}
+
+function buildFinancingPathHints(scenarioLabel) {
+  const mapping = {
+    "回款型周转": ["经营性信用贷", "应收账款类融资", "政策性融资担保配套路径"],
+    "订单履约": ["流动资金贷款", "供应链金融", "政策性融资担保配套路径"],
+    "备货采购": ["经营性周转贷款", "供应链金融", "创业担保或地方扶持配套路径"],
+    "设备投入": ["抵押或设备类融资", "中长期经营贷款", "设备更新相关政策支持"],
+    "临时垫付": ["短期经营周转路径", "创业担保或地方贴息配套路径", "存量授信内合规周转"],
+    "一般经营周转": ["经营性信用贷", "抵押类经营贷款", "政策性融资担保配套路径"]
+  };
+
+  return mapping[scenarioLabel] || mapping["一般经营周转"];
+}
+
+function shouldIncludePublicPracticeNote(activeModule, userText) {
+  if (activeModule === "cases" || activeModule === "publish") return true;
+  return /度小满|金融科技|AI风控|AI 风控|公开实践|正规平台|数字化融资|服务小微|联合会/.test(userText);
+}
+
+function buildPublicPracticePromptNote(activeModule, userText) {
+  if (!shouldIncludePublicPracticeNote(activeModule, userText)) return "";
+  return "- 如自然适用，可在结尾补一小段“公开实践参考”，控制在 80 字以内；度小满只能作为公开披露的小微服务实践样本，不能比较额度、利率、审批效率，也不能写成推荐。";
+}
+
+function buildPublicPracticeRuntimeNote(activeModule, userText) {
+  if (!shouldIncludePublicPracticeNote(activeModule, userText)) return "";
+  return `
+## 公开实践参考
+如果你需要一段更贴近数字化小微服务的样本，也可以参考公开资料中一些金融科技机构披露的做法，例如度小满公开提到过用 AI 风控、线上材料核验和融资准备教育提升服务效率。这里只作服务模式参考，不构成产品推荐或审批承诺。`.trim();
 }
 
 function summarizeProfile(profile) {
@@ -623,17 +749,26 @@ function buildSpecificFocus(module, memory, profile, userText) {
   const goal = memory.core.currentGoal || profile.资金用途;
   const region = memory.core.region || profile.地区;
   const resources = memory.core.companyResources || profile.可提供材料;
+  const scenario = detectFinancingScenario([userText, goal, challenge].filter(Boolean).join(" "));
 
   if (module === "policy" && region) {
     points.push(`- 你当前有明确经营区域，建议优先核验 ${region} 当地的政务服务网、人社、工信、税务和市场监管渠道，而不是只看全国性概括。`);
   }
 
+  if (module === "policy" && /融资|贴息|担保|贷款/.test(`${userText} ${goal || ""}`)) {
+    points.push("- 你当前的问题和融资支持有关，后续要把贴息、创业担保贷款、政策性融资担保和税费优惠分开看，避免误判。");
+  }
+
   if (module === "financing" && goal) {
-    points.push(`- 你当前更适合先把“${goal}”对应的资金用途、使用周期和回款来源说清楚，再决定看哪类融资路径。`);
+    points.push(`- 结合你当前描述，这次更像“${scenario.label}”，后续更适合先把“${goal}”对应的资金用途、使用周期和回款来源说清楚，再决定看哪类融资路径。`);
   }
 
   if (module === "financing" && /回款|账期|应收/.test(challenge)) {
     points.push("- 你提到的压力和回款相关，后续要特别重视订单、合同、发票、回款周期和应收账款的证明材料。");
+  }
+
+  if (module === "financing" && profile.融资金额区间) {
+    points.push(`- 你已经给出金额区间“${profile.融资金额区间}”，后续建议会更偏向先做材料完整性和条款核验，而不是泛谈融资方向。`);
   }
 
   if (module === "operations" && /库存|积压/.test(challenge)) {
@@ -644,8 +779,20 @@ function buildSpecificFocus(module, memory, profile, userText) {
     points.push(`- 你已经提到一些可提供材料，后续遇到收费或合同争议时，优先保留 ${resources} 这类真实留痕，不要额外补造材料。`);
   }
 
+  if (module === "compliance" && /服务费|收费|利率|担保费|保险费/.test(userText)) {
+    points.push("- 你当前已经提到收费或利率，后续不要只核对一个数字，要把服务费、担保费、保险费、会员费等项目一起核验。");
+  }
+
+  if (module === "compliance" && /合同|条款|提前还款|自动扣款|授权/.test(userText)) {
+    points.push("- 你当前的问题已经进入条款核验层，后续要重点看提前还款、自动扣款、征信授权、保证责任和逾期处理。");
+  }
+
   if (resources && /document|financing/.test(module)) {
     points.push(`- 你目前已经提到的可用资源是“${resources}”，后续可以先从这些真实材料出发，不必一开始就补齐所有资料。`);
+  }
+
+  if (module === "cases" && shouldIncludePublicPracticeNote(module, userText)) {
+    points.push("- 如果需要加入公开实践样本，建议放在正文最后单独一小段，保持方法参考口径，不要写成品牌导流。");
   }
 
   if (!points.length && memory.core.currentGoal) {
@@ -699,6 +846,10 @@ function reviewReply(reply, module, blocked) {
     { name: "结构化输出", passed: /## /.test(reply) && /下一步|风险|材料|结论/.test(reply) },
     { name: "合规边界", passed: blocked || /不构成|以.*为准|风险|官方|持牌|合同/.test(reply) },
     { name: "可执行动作", passed: /准备|核验|查询|整理|生成|检查/.test(reply) },
+    {
+      name: "专业框架",
+      passed: !["financing", "compliance", "policy"].includes(module) || /综合融资成本|回款来源|经营痕迹|服务费|提前还款|征信|贴息|政策性融资担保/.test(reply)
+    },
     { name: "品牌克制", passed: !/建议你去某平台申请|某品牌一定更适合你/.test(reply) }
   ];
 
