@@ -171,7 +171,7 @@ function startConversation() {
   if (needsOnboarding()) {
     addMessage(
       "assistant",
-      "你好。这里会先用 4 个必要问题建立企业档案。后面无论你问政策、融资准备、材料还是经营问题，我都会默认带入这份背景，不再反复让你重讲。"
+      "你好。先用 4 个问题建立企业档案，后面我会默认带入，不用你反复重讲。"
     );
     ensureOnboarding(false);
     return;
@@ -179,7 +179,7 @@ function startConversation() {
 
   addMessage(
     "assistant",
-    "你好，企业档案已经建立。你现在可以直接提具体问题，我会优先整理事项、材料、风险和下一步动作。"
+    "你好，企业档案已就绪。现在可以直接提问题。"
   );
 }
 
@@ -201,7 +201,7 @@ function ensureOnboarding(forcePrompt) {
   renderResultBoard(state.lastResponse);
 
   if (forcePrompt) {
-    addMessage("assistant", "先把企业档案补到可用状态。这样后面的建议才会真正贴着你的企业情况走。");
+    addMessage("assistant", "先把企业档案补齐，后面的建议会更准。");
   }
 
   askCurrentOnboardingQuestion();
@@ -211,7 +211,7 @@ function askCurrentOnboardingQuestion() {
   const step = onboardingFlow[state.onboardingIndex];
   if (!step) return;
   addMessage("assistant", step.question);
-  nodes.composerTip.textContent = `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`;
+  nodes.composerTip.textContent = `建档中 ${state.onboardingIndex + 1}/${onboardingFlow.length}`;
   nodes.askButton.textContent = "记录并继续";
 }
 
@@ -229,7 +229,7 @@ function handleOnboardingAnswer(answer) {
   const nextIndex = nextOnboardingIndex();
   if (nextIndex !== null) {
     state.onboardingIndex = nextIndex;
-    addMessage("assistant", "记下了。继续下一项。");
+    addMessage("assistant", "记下了，继续。");
     askCurrentOnboardingQuestion();
     return;
   }
@@ -241,12 +241,12 @@ function handleOnboardingAnswer(answer) {
   renderMemoryPanels();
   renderHero();
   renderResultBoard(state.lastResponse);
-  nodes.composerTip.textContent = "企业档案已建立。后续可以直接进入具体咨询。";
-  nodes.askButton.textContent = "获取建议";
+  nodes.composerTip.textContent = "企业档案已建立。";
+  nodes.askButton.textContent = "发送";
 
   addMessage(
     "assistant",
-    "基础情况已记录。接下来你可以直接说具体问题，我会默认以这些企业背景为出发点来整理结果。"
+    "基础情况已记录。接下来直接说问题就行。"
   );
 }
 
@@ -267,7 +267,7 @@ function restartOnboarding() {
   renderMemoryPanels();
   renderHero();
   renderResultBoard(state.lastResponse);
-  addMessage("assistant", "我们重新更新一遍企业档案。每一轮都尽量只说必要信息，不需要长篇介绍。");
+  addMessage("assistant", "我们重新建一遍档案，只说必要信息就行。");
   askCurrentOnboardingQuestion();
 }
 
@@ -286,15 +286,15 @@ function renderHealth(data) {
   if (!data) {
     nodes.statusBadge.textContent = "离线可用";
     nodes.statusBadge.className = "status-badge muted";
-    nodes.healthHint.textContent = "你可以先建立企业档案，再直接进入具体咨询。";
+    nodes.healthHint.textContent = "先建档，再提问。";
     return;
   }
 
   nodes.statusBadge.textContent = data.hasApiKey ? "服务已就绪" : "基础模式";
   nodes.statusBadge.className = "status-badge live";
   nodes.healthHint.textContent = needsOnboarding()
-    ? "建议先完成 4 轮建档，后面的结果会更具体。"
-    : "企业档案已就绪。接下来可以直接提问题。";
+    ? "先完成建档，结果会更准。"
+    : "企业档案已就绪。";
 }
 
 function renderHero() {
@@ -303,21 +303,21 @@ function renderHero() {
   if (needsOnboarding() || isOnboardingActive()) {
     nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
     nodes.composerTip.textContent = isOnboardingActive()
-      ? `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`
-      : "先建立企业档案，后续问题就不需要重复介绍背景。";
+      ? `建档中 ${state.onboardingIndex + 1}/${onboardingFlow.length}`
+      : "先建档，后面会更准。";
     nodes.askButton.textContent = isOnboardingActive() ? "记录并继续" : "继续";
     return;
   }
 
   nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
-  nodes.composerTip.textContent = "你可以直接说场景、用途、已有材料和顾虑，我会按结构化方式替你整理。";
-  nodes.askButton.textContent = "获取建议";
+  nodes.composerTip.textContent = "直接说重点。";
+  nodes.askButton.textContent = "发送";
 }
 
 async function runSkill(question, module = "auto") {
   addMessage("user", question);
   setLoading(true);
-  const loading = addMessage("assistant", "正在结合你的企业背景整理问题、资料、风险和下一步动作，请稍等。");
+  const loading = addMessage("assistant", "正在整理，请稍等。");
 
   applyConversationHeuristics(question, state.memory);
 
@@ -371,7 +371,7 @@ function renderTrace(data) {
       nodes.traceMissing.innerHTML = renderTags(tips);
     } else {
       nodes.traceMissing.className = "tag-list empty";
-      nodes.traceMissing.textContent = "当前基础背景已较完整，可继续补充更具体的问题。";
+      nodes.traceMissing.textContent = "信息基本完整。";
     }
     return;
   }
@@ -386,7 +386,7 @@ function renderTrace(data) {
     nodes.traceMissing.innerHTML = renderTags(data.trace.missingLowRiskFields);
   } else {
     nodes.traceMissing.className = "tag-list empty";
-    nodes.traceMissing.textContent = "当前基础背景已较完整，可继续补充金额区间、材料类型或更具体目标。";
+    nodes.traceMissing.textContent = "信息基本完整。";
   }
 }
 
@@ -408,8 +408,8 @@ function renderMemorySummary() {
 
   if (!summaryItems.length) {
     nodes.memorySummary.className = "memory-summary empty";
-    nodes.memorySummary.textContent = "先回答 4 个必要问题，后续建议就会默认结合你的企业背景，不再重复从零开始。";
-    nodes.memoryStatus.textContent = "首次使用建议先建立企业档案";
+    nodes.memorySummary.textContent = "先回答 4 个问题。";
+    nodes.memoryStatus.textContent = "先建立档案";
     return;
   }
 
@@ -418,8 +418,8 @@ function renderMemorySummary() {
     .map(([label, value]) => `<div class="memory-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
     .join("");
   nodes.memoryStatus.textContent = state.memory.meta.intakeComplete
-    ? "企业档案已建立，后续咨询会默认带入"
-    : "企业档案未完成，建议继续补充";
+    ? "已建立"
+    : "继续补充";
 }
 
 function renderMemoryProgress() {
@@ -438,7 +438,7 @@ function renderCoreMemory() {
     state.memory.core.advantages
   ].filter(Boolean);
 
-  nodes.coreMemory.innerHTML = tags.length ? renderTags(tags) : "建立企业档案后，会在这里显示长期背景。";
+  nodes.coreMemory.innerHTML = tags.length ? renderTags(tags) : "还没有记录。";
   nodes.coreMemory.className = tags.length ? "tag-list" : "tag-list empty";
 }
 
@@ -450,14 +450,14 @@ function renderProfileMemory() {
     state.memory.profile.focusArea
   ].filter(Boolean);
 
-  nodes.profileMemory.innerHTML = tags.length ? renderTags(tags) : "例如企业历史、沟通偏好、重点关注方向等。";
+  nodes.profileMemory.innerHTML = tags.length ? renderTags(tags) : "还没有记录。";
   nodes.profileMemory.className = tags.length ? "tag-list" : "tag-list empty";
 }
 
 function renderInteractionMemory() {
   const items = (state.memory.interactions || []).slice(-3).reverse();
   if (!items.length) {
-    nodes.interactionMemory.textContent = "还没有近期沟通记录。";
+    nodes.interactionMemory.textContent = "还没有记录。";
     nodes.interactionMemory.className = "history-list empty";
     return;
   }
@@ -473,13 +473,13 @@ function renderInteractionMemory() {
 function renderResultBoard(data) {
   if (!data) {
     nodes.boardHint.textContent = needsOnboarding()
-      ? "先完成 4 轮企业档案，再发起咨询，这里的结果会明显更像工具而不是通用问答。"
-      : "发起一次咨询后，这里会自动整理结构化结果。";
+      ? "先建档，再提问。"
+      : "结果会在这里整理。";
     nodes.resultCards.className = "result-cards empty";
     nodes.resultCards.innerHTML = `
       <article class="empty-card">
-        <strong>还没有咨询结果</strong>
-        <p>先建立企业档案，再提一个具体问题。系统会自动把回答拆成可执行卡片，而不是只返回一段大模型文字。</p>
+        <strong>还没有结果</strong>
+        <p>提一个具体问题，这里会自动整理。</p>
       </article>
     `;
     renderFollowupSuggestions(null, []);
@@ -539,7 +539,7 @@ function renderFollowupSuggestions(data, sections) {
   const suggestions = buildFollowupSuggestions(data, sections);
   if (!suggestions.length) {
     nodes.followupSuggestions.className = "action-list empty";
-    nodes.followupSuggestions.textContent = "发起一次咨询后，这里会给出下一轮可直接发送的建议动作。";
+    nodes.followupSuggestions.textContent = "结果生成后，这里会给你下一步。";
     return;
   }
 
