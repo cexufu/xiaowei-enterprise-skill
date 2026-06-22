@@ -3,8 +3,11 @@ const MAX_INTERACTIONS = 8;
 
 const onboardingFlow = [
   {
-    key: "mainBusiness",
-    question: "先用两三句话介绍一下：你们主要做什么产品或服务？大致属于什么行业？主要客户是谁？",
+    id: "business",
+    question: "先简单说一下：你们主要做什么产品或服务？服务谁？大致属于什么行业？",
+    isComplete(memory) {
+      return Boolean(memory.core.mainBusiness);
+    },
     apply(memory, answer) {
       memory.core.mainBusiness = answer;
       const industry = inferIndustry(answer);
@@ -14,49 +17,43 @@ const onboardingFlow = [
     }
   },
   {
-    key: "region",
-    question: "主要在哪些城市或区域经营？目前最核心的市场在哪里？",
+    id: "region",
+    question: "主要在哪些城市或区域经营？现在最核心的市场在哪里？",
+    isComplete(memory) {
+      return Boolean(memory.core.region);
+    },
     apply(memory, answer) {
       memory.core.region = answer;
+      if (!memory.core.marketSituation) {
+        memory.core.marketSituation = answer;
+      }
     }
   },
   {
-    key: "mainChallenges",
-    question: "现阶段最大的经营压力或困难是什么？可以直接说最困扰你的那一件事。",
+    id: "challengeGoal",
+    question: "现阶段最现实的困难是什么？这次最想优先解决的问题又是什么？可以放在一句话里说。",
+    isComplete(memory) {
+      return Boolean(memory.core.mainChallenges) && Boolean(memory.core.currentGoal);
+    },
     apply(memory, answer) {
-      memory.core.mainChallenges = answer;
+      const { challenge, goal } = splitChallengeAndGoal(answer);
+      memory.core.mainChallenges = challenge || answer;
+      memory.core.currentGoal = goal || answer;
     }
   },
   {
-    key: "currentGoal",
-    question: "这次你最想优先解决什么问题？比如融资准备、政策查询、合同风险、回款压力、库存问题等。",
-    apply(memory, answer) {
-      memory.core.currentGoal = answer;
-    }
-  },
-  {
-    key: "resources",
-    question: "目前你们手里已有的资源或材料有哪些？比如营业执照、订单、发票、固定客户、渠道、设备、团队经验等。",
+    id: "resources",
+    question: "你们现在已有的资源、材料或优势是什么？比如订单、客户、发票、设备、渠道、团队经验等。",
+    isComplete(memory) {
+      return Boolean(memory.core.companyResources) && Boolean(memory.core.advantages);
+    },
     apply(memory, answer) {
       memory.core.companyResources = answer;
       memory.core.teamCharacteristics = answer;
-    }
-  },
-  {
-    key: "advantages",
-    question: "相比同行，你觉得自己现在最大的优势是什么？市场上又面临哪些竞争压力？",
-    apply(memory, answer) {
       memory.core.advantages = answer;
-      memory.core.marketSituation = answer;
-      memory.core.industryCompetitiveness = answer;
-    }
-  },
-  {
-    key: "vision",
-    question: "如果看未来 1 到 2 年，你最希望把公司做成什么样？为了实现这个目标，现在主要在坚持什么做法？",
-    apply(memory, answer) {
-      memory.core.companyVision = answer;
-      memory.core.companyStrategy = answer;
+      if (!memory.core.industryCompetitiveness) {
+        memory.core.industryCompetitiveness = answer;
+      }
     }
   }
 ];
@@ -81,6 +78,8 @@ const nodes = {
   composerTip: document.querySelector("#composerTip"),
   memorySummary: document.querySelector("#memorySummary"),
   memoryStatus: document.querySelector("#memoryStatus"),
+  memoryProgressBar: document.querySelector("#memoryProgressBar"),
+  memoryProgressText: document.querySelector("#memoryProgressText"),
   refreshMemoryButton: document.querySelector("#refreshMemoryButton"),
   traceIntent: document.querySelector("#traceIntent"),
   traceMode: document.querySelector("#traceMode"),
@@ -90,14 +89,18 @@ const nodes = {
   traceMissing: document.querySelector("#traceMissing"),
   coreMemory: document.querySelector("#coreMemory"),
   profileMemory: document.querySelector("#profileMemory"),
-  interactionMemory: document.querySelector("#interactionMemory")
+  interactionMemory: document.querySelector("#interactionMemory"),
+  resultCards: document.querySelector("#resultCards"),
+  boardHint: document.querySelector("#boardHint"),
+  followupSuggestions: document.querySelector("#followupSuggestions")
 };
 
 const state = {
   health: null,
   memory: loadMemory(),
   onboardingIndex: null,
-  pendingModule: "auto"
+  pendingModule: "auto",
+  lastResponse: null
 };
 
 init();
@@ -106,6 +109,8 @@ async function init() {
   bindEvents();
   renderMemoryPanels();
   renderHero();
+  renderTrace(null);
+  renderResultBoard(null);
   await loadHealth();
   startConversation();
 }
@@ -144,13 +149,21 @@ function bindEvents() {
   nodes.refreshMemoryButton.addEventListener("click", () => {
     restartOnboarding();
   });
+
+  nodes.followupSuggestions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-prompt]");
+    if (!button) return;
+    nodes.questionInput.value = button.dataset.prompt || "";
+    nodes.questionInput.focus();
+    nodes.questionInput.setSelectionRange(nodes.questionInput.value.length, nodes.questionInput.value.length);
+  });
 }
 
 function startConversation() {
   if (needsOnboarding()) {
     addMessage(
       "assistant",
-      "你好，这里会先用几轮简短对话建立企业档案。后续无论你问政策、融资准备、材料起草还是经营问题，我都会默认以这份背景作为出发点，不需要你每次重复介绍。"
+      "你好。这里会先用 4 个必要问题建立企业档案。后面无论你问政策、融资准备、材料还是经营问题，我都会默认带入这份背景，不再反复让你重讲。"
     );
     ensureOnboarding(false);
     return;
@@ -158,7 +171,7 @@ function startConversation() {
 
   addMessage(
     "assistant",
-    "你好，企业档案已经建立。你可以直接提具体问题，我会结合你已有的企业背景继续往下分析，不再从零开始问。"
+    "你好，企业档案已经建立。你现在可以直接提具体问题，我会优先整理事项、材料、风险和下一步动作。"
   );
 }
 
@@ -172,13 +185,15 @@ function ensureOnboarding(forcePrompt) {
     persistMemory();
     renderMemoryPanels();
     renderHero();
+    renderResultBoard(state.lastResponse);
     return;
   }
 
   renderHero();
+  renderResultBoard(state.lastResponse);
 
   if (forcePrompt) {
-    addMessage("assistant", "先把企业档案补到可用状态。这样后面的建议才会更具体。");
+    addMessage("assistant", "先把企业档案补到可用状态。这样后面的建议才会真正贴着你的企业情况走。");
   }
 
   askCurrentOnboardingQuestion();
@@ -188,7 +203,7 @@ function askCurrentOnboardingQuestion() {
   const step = onboardingFlow[state.onboardingIndex];
   if (!step) return;
   addMessage("assistant", step.question);
-  nodes.composerTip.textContent = `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。回答尽量按实际情况说清楚即可。`;
+  nodes.composerTip.textContent = `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`;
   nodes.askButton.textContent = "记录并继续";
 }
 
@@ -203,10 +218,10 @@ function handleOnboardingAnswer(answer) {
   persistMemory();
   renderMemoryPanels();
 
-  const nextIndex = state.onboardingIndex + 1;
-  if (nextIndex < onboardingFlow.length) {
+  const nextIndex = nextOnboardingIndex();
+  if (nextIndex !== null) {
     state.onboardingIndex = nextIndex;
-    addMessage("assistant", "记下了。我们继续下一项。");
+    addMessage("assistant", "记下了。继续下一项。");
     askCurrentOnboardingQuestion();
     return;
   }
@@ -217,22 +232,34 @@ function handleOnboardingAnswer(answer) {
   persistMemory();
   renderMemoryPanels();
   renderHero();
+  renderResultBoard(state.lastResponse);
   nodes.composerTip.textContent = "企业档案已建立。后续可以直接进入具体咨询。";
   nodes.askButton.textContent = "获取建议";
 
   addMessage(
     "assistant",
-    "基础情况已记录。后续我会默认以这些企业背景来理解你的问题，不再重复做同样的背景收集。现在你可以直接进入具体咨询。"
+    "基础情况已记录。接下来你可以直接说具体问题，我会默认以这些企业背景为出发点来整理结果。"
   );
 }
 
 function restartOnboarding() {
+  state.memory.core.mainBusiness = "";
+  state.memory.core.industry = "";
+  state.memory.core.region = "";
+  state.memory.core.mainChallenges = "";
+  state.memory.core.currentGoal = "";
+  state.memory.core.advantages = "";
+  state.memory.core.marketSituation = "";
+  state.memory.core.companyResources = "";
+  state.memory.core.teamCharacteristics = "";
+  state.memory.core.industryCompetitiveness = "";
   state.onboardingIndex = 0;
   state.memory.meta.intakeComplete = false;
   persistMemory();
   renderMemoryPanels();
   renderHero();
-  addMessage("assistant", "我们重新更新一遍企业档案。你只需要按实际情况简短回答即可。");
+  renderResultBoard(state.lastResponse);
+  addMessage("assistant", "我们重新更新一遍企业档案。每一轮都尽量只说必要信息，不需要长篇介绍。");
   askCurrentOnboardingQuestion();
 }
 
@@ -251,20 +278,22 @@ function renderHealth(data) {
   if (!data) {
     nodes.statusBadge.textContent = "服务已开启";
     nodes.statusBadge.className = "status-badge muted";
-    nodes.healthHint.textContent = "你可以直接开始建立企业档案或进入具体咨询。";
+    nodes.healthHint.textContent = "你可以先建立企业档案，再直接进入具体咨询。";
     return;
   }
 
   nodes.statusBadge.textContent = "服务已就绪";
   nodes.statusBadge.className = data.hasApiKey ? "status-badge live" : "status-badge";
   nodes.healthHint.textContent = needsOnboarding()
-    ? "建议先建立企业档案，后续建议会更具体。"
-    : "企业背景已建立，后续问题会默认基于这份背景继续处理。";
+    ? "建议先完成 4 轮企业档案。这样结果看板里的内容会明显更具体。"
+    : "企业档案已就绪。接下来可以直接提问题，系统会自动整理结构化结果。";
 }
 
 function renderHero() {
+  renderHealth(state.health);
+
   if (needsOnboarding() || isOnboardingActive()) {
-    nodes.heroTitle.textContent = "先用几轮简短对话建立企业档案，后续建议都会基于你的企业背景来理解";
+    nodes.heroTitle.textContent = "先用 4 个问题建立企业档案，后续建议会从你的实际经营情况出发";
     nodes.composerTip.textContent = isOnboardingActive()
       ? `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`
       : "先建立企业档案，后续问题就不需要重复介绍背景。";
@@ -272,8 +301,8 @@ function renderHero() {
     return;
   }
 
-  nodes.heroTitle.textContent = "企业背景已经记住了。接下来请直接说问题，我会从你的实际情况出发给建议";
-  nodes.composerTip.textContent = "你可以直接说场景、用途、已有材料和顾虑，我会按事项、资料、风险和下一步动作为你整理。";
+  nodes.heroTitle.textContent = "企业背景已经记住了。接下来直接说问题，我会给你结构化的事项、材料、风险和下一步";
+  nodes.composerTip.textContent = "你可以直接说场景、用途、已有材料和顾虑，我会按结构化方式替你整理。";
   nodes.askButton.textContent = "获取建议";
 }
 
@@ -304,8 +333,10 @@ async function runSkill(question, module = "auto") {
       return;
     }
 
+    state.lastResponse = data;
     addMessage("assistant", data.reply);
     renderTrace(data);
+    renderResultBoard(data);
     appendInteractionMemory(question, data);
     persistMemory();
     renderMemoryPanels();
@@ -318,20 +349,40 @@ async function runSkill(question, module = "auto") {
 }
 
 function renderTrace(data) {
+  if (!data) {
+    const tips = buildMissingFieldTips();
+    nodes.traceIntent.textContent = "待开始";
+    nodes.traceMode.textContent = "待开始";
+    nodes.traceGuardrail.textContent = "-";
+    nodes.traceSensitive.textContent = "-";
+    nodes.traceProfile.textContent = needsOnboarding() ? `${getOnboardingCompletionCount()}/${onboardingFlow.length}` : "-";
+    if (tips.length) {
+      nodes.traceMissing.className = "tag-list";
+      nodes.traceMissing.innerHTML = renderTags(tips);
+    } else {
+      nodes.traceMissing.className = "tag-list empty";
+      nodes.traceMissing.textContent = "当前基础背景已较完整，可继续补充更具体的问题。";
+    }
+    return;
+  }
+
   nodes.traceIntent.textContent = data.trace?.intentTitle || data.moduleTitle || "待识别";
   nodes.traceMode.textContent = modeLabel(data.mode);
   nodes.traceGuardrail.textContent = data.trace?.guardrail || "-";
   nodes.traceSensitive.textContent = data.trace?.sensitive || "-";
   nodes.traceProfile.textContent = data.trace?.profileCompleteness || "-";
-  nodes.traceMissing.innerHTML = renderTags(
-    data.trace?.missingLowRiskFields?.length
-      ? data.trace.missingLowRiskFields
-      : ["当前基础背景已较完整，可继续补充金额区间、材料类型或更具体目标。"]
-  );
+  if (data.trace?.missingLowRiskFields?.length) {
+    nodes.traceMissing.className = "tag-list";
+    nodes.traceMissing.innerHTML = renderTags(data.trace.missingLowRiskFields);
+  } else {
+    nodes.traceMissing.className = "tag-list empty";
+    nodes.traceMissing.textContent = "当前基础背景已较完整，可继续补充金额区间、材料类型或更具体目标。";
+  }
 }
 
 function renderMemoryPanels() {
   renderMemorySummary();
+  renderMemoryProgress();
   renderCoreMemory();
   renderProfileMemory();
   renderInteractionMemory();
@@ -347,7 +398,7 @@ function renderMemorySummary() {
 
   if (!summaryItems.length) {
     nodes.memorySummary.className = "memory-summary empty";
-    nodes.memorySummary.textContent = "还没有记录企业背景。开始几轮简短对话后，后续问题会默认基于你的企业情况来理解。";
+    nodes.memorySummary.textContent = "先回答 4 个必要问题，后续建议就会默认结合你的企业背景，不再重复从零开始。";
     nodes.memoryStatus.textContent = "首次使用建议先建立企业档案";
     return;
   }
@@ -361,14 +412,20 @@ function renderMemorySummary() {
     : "企业档案未完成，建议继续补充";
 }
 
+function renderMemoryProgress() {
+  const completed = getOnboardingCompletionCount();
+  const ratio = `${Math.round((completed / onboardingFlow.length) * 100)}%`;
+  nodes.memoryProgressBar.style.width = ratio;
+  nodes.memoryProgressText.textContent = `${completed} / ${onboardingFlow.length}`;
+}
+
 function renderCoreMemory() {
   const tags = [
     state.memory.core.industry,
     state.memory.core.region,
     state.memory.core.mainChallenges,
     state.memory.core.currentGoal,
-    state.memory.core.advantages,
-    state.memory.core.companyResources
+    state.memory.core.advantages
   ].filter(Boolean);
 
   nodes.coreMemory.innerHTML = tags.length ? renderTags(tags) : "建立企业档案后，会在这里显示长期背景。";
@@ -403,6 +460,131 @@ function renderInteractionMemory() {
     .join("");
 }
 
+function renderResultBoard(data) {
+  if (!data) {
+    nodes.boardHint.textContent = needsOnboarding()
+      ? "先完成 4 轮企业档案，再发起咨询，这里的结果会明显更像工具而不是通用问答。"
+      : "发起一次咨询后，这里会自动整理结构化结果。";
+    nodes.resultCards.className = "result-cards empty";
+    nodes.resultCards.innerHTML = `
+      <article class="empty-card">
+        <strong>还没有咨询结果</strong>
+        <p>先建立企业档案，再提一个具体问题。系统会自动把回答拆成可执行卡片，而不是只返回一段大模型文字。</p>
+      </article>
+    `;
+    renderFollowupSuggestions(null, []);
+    return;
+  }
+
+  const sections = parseReplySections(data.reply);
+  const visibleSections = pickBoardSections(sections);
+  nodes.boardHint.textContent = `${data.moduleTitle} · ${modeLabel(data.mode)}`;
+  nodes.resultCards.className = visibleSections.length ? "result-cards" : "result-cards empty";
+  nodes.resultCards.innerHTML = visibleSections.length
+    ? visibleSections.map((section) => renderResultCard(section)).join("")
+    : `
+      <article class="empty-card">
+        <strong>这次回答没有成功结构化</strong>
+        <p>你可以继续追问更具体的问题，或者直接让我生成清单、初稿或风险标注。</p>
+      </article>
+    `;
+  renderFollowupSuggestions(data, sections);
+}
+
+function renderResultCard(section) {
+  const tone = cardToneForTitle(section.title);
+  const content = section.body ? formatMarkdown(section.body) : "<p>—</p>";
+  return `
+    <article class="result-card ${tone}">
+      <h3>${escapeHtml(section.title)}</h3>
+      <div class="result-card-body">${content}</div>
+    </article>
+  `;
+}
+
+function renderFollowupSuggestions(data, sections) {
+  const suggestions = buildFollowupSuggestions(data, sections);
+  if (!suggestions.length) {
+    nodes.followupSuggestions.className = "action-list empty";
+    nodes.followupSuggestions.textContent = "发起一次咨询后，这里会给出下一轮可直接发送的建议动作。";
+    return;
+  }
+
+  nodes.followupSuggestions.className = "action-list";
+  nodes.followupSuggestions.innerHTML = suggestions
+    .map((item) => `<button class="suggestion-chip" type="button" data-prompt="${escapeAttribute(item.prompt)}">${escapeHtml(item.label)}</button>`)
+    .join("");
+}
+
+function buildFollowupSuggestions(data, sections) {
+  if (!data) {
+    return buildMissingFieldPrompts().slice(0, 3);
+  }
+
+  const prompts = [];
+  const nextStep = extractSectionBody(sections, /下一步/);
+  if (nextStep) {
+    prompts.push({ label: "按当前结果继续追问", prompt: nextStep.replace(/\n+/g, " ").trim() });
+  }
+
+  const modulePrompts = {
+    policy: [
+      { label: "生成政策核验清单", prompt: "请基于我们当前情况，帮我做一张政策核验清单，按渠道、适用条件、材料和核验动作来写。" },
+      { label: "补充官方入口", prompt: "请继续补充和我们情况相关的官方入口，优先列出本地化核验路径。" }
+    ],
+    financing: [
+      { label: "生成融资准备清单", prompt: "请基于我们当前情况，生成一张融资准备清单，按用途、材料、风险和下一步展开。" },
+      { label: "起草贷款用途说明", prompt: "请结合我们当前情况，先起草一版贷款用途说明，缺失字段用【待确认】标注。" }
+    ],
+    document: [
+      { label: "继续补全初稿", prompt: "请继续把这份材料初稿展开得更完整一些，并标出还需要我补充的字段。" },
+      { label: "列出待确认字段", prompt: "请把这份材料里所有待确认字段单独列出来，按优先级排序。" }
+    ],
+    compliance: [
+      { label: "逐条标注风险", prompt: "我接下来贴一段宣传话术或合同表述，请你逐条标注风险和替代表达。" },
+      { label: "生成核验清单", prompt: "请给我一份收费、合同和资质核验清单，适合小微企业自己先做初筛。" }
+    ],
+    operations: [
+      { label: "生成排查清单", prompt: "请基于我们当前情况，生成一份经营排查清单，优先围绕库存、回款和现金流。" },
+      { label: "给两周复盘框架", prompt: "请给我一个适合小微企业的两周经营复盘框架，尽量简单可执行。" }
+    ],
+    cases: [
+      { label: "整理成案例写法", prompt: "请把这个方向整理成案例写法，按背景、服务动作、可借鉴点和边界来写。" },
+      { label: "改成克制表达", prompt: "请把这段案例表达改得更克制、更像公共服务，而不是营销导流。" }
+    ]
+  }[data.module] || [];
+
+  prompts.push(...modulePrompts);
+
+  const missingPrompts = buildMissingFieldPrompts(data.trace?.missingLowRiskFields || []);
+  prompts.push(...missingPrompts);
+
+  return dedupeSuggestions(prompts).slice(0, 4);
+}
+
+function buildMissingFieldPrompts(fields = buildMissingFieldTips()) {
+  const mapping = {
+    地区: { label: "补充经营地区", prompt: "补充一下我们的经营地区、核心市场和主要客户分布：" },
+    行业: { label: "补充主营与行业", prompt: "补充一下我们的主营业务、行业和客户类型：" },
+    经营阶段: { label: "补充经营阶段", prompt: "补充一下我们的经营年限、团队情况和发展阶段：" },
+    资金用途: { label: "补充资金用途", prompt: "补充一下这次资金或事项的具体用途、周期和目标：" }
+  };
+
+  return fields
+    .map((field) => mapping[field])
+    .filter(Boolean);
+}
+
+function dedupeSuggestions(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item || !item.prompt) return false;
+    if (seen.has(item.prompt)) return false;
+    seen.add(item.prompt);
+    return true;
+  });
+}
+
 function buildProfileFromMemory(memory) {
   return {
     region: memory.core.region,
@@ -426,11 +608,11 @@ function buildSceneDraft(scene, memory) {
   };
 
   const drafts = {
-    policy: `结合我们目前的情况：${context.business}，主要在${context.region}经营。想先了解和“${context.goal}”相关的政策、补贴或支持方向，应该从哪些官方渠道开始核验？`,
+    policy: `结合我们目前的情况：${context.business}，主要在${context.region}经营。想围绕“${context.goal}”先做政策方向和官方核验，应该从哪些入口开始？`,
     financing: `结合我们目前的情况：${context.business}。当前最大的压力是“${context.challenge}”，想围绕“${context.goal}”做融资准备，应该先整理哪些真实材料和风险点？`,
-    document: `请结合我们的情况：${context.business}，当前想解决“${context.goal}”。帮我起草一份基础说明材料，优先写贷款用途说明或经营情况说明。`,
+    document: `请结合我们的情况：${context.business}，当前想解决“${context.goal}”。先帮我起草一份基础说明材料，并标出待确认字段。`,
     compliance: `结合我们当前准备处理的问题“${context.goal}”，如果遇到收费、合同、宣传话术或材料要求，哪些表述最值得警惕？`,
-    operations: `我们目前的经营情况是：${context.business}。现在最大的困难是“${context.challenge}”，想先做经营梳理，应该从哪些动作开始排查？`,
+    operations: `我们目前的经营情况是：${context.business}。现在最大的困难是“${context.challenge}”，如果先做经营梳理，应该从哪些动作开始排查？`,
     cases: `请基于“${context.goal}”这个方向，给我一个服务小微企业的案例写法，重点写背景、服务动作、可借鉴点和边界。`
   };
 
@@ -500,32 +682,40 @@ function inferIndustry(text) {
   return matched ? matched[0] : "";
 }
 
-function nextOnboardingIndex() {
-  const index = onboardingFlow.findIndex((step) => {
-    if (step.key === "resources") {
-      return !state.memory.core.companyResources;
-    }
-    if (step.key === "advantages") {
-      return !state.memory.core.advantages;
-    }
-    if (step.key === "vision") {
-      return !state.memory.core.companyVision;
-    }
-    return !state.memory.core[step.key];
-  });
+function splitChallengeAndGoal(text) {
+  const normalized = text.replace(/。/g, "，");
+  const marker = normalized.match(/(想|希望|优先|目标是|打算|计划)/);
+  if (!marker) {
+    return { challenge: text, goal: text };
+  }
 
+  const index = marker.index || 0;
+  return {
+    challenge: normalized.slice(0, index).replace(/^[，,\s]+|[，,\s]+$/g, ""),
+    goal: normalized.slice(index).replace(/^[，,\s]+|[，,\s]+$/g, "")
+  };
+}
+
+function nextOnboardingIndex() {
+  const index = onboardingFlow.findIndex((step) => !step.isComplete(state.memory));
   return index === -1 ? null : index;
 }
 
-function needsOnboarding() {
-  const requiredCount = [
-    state.memory.core.mainBusiness,
-    state.memory.core.region,
-    state.memory.core.mainChallenges,
-    state.memory.core.currentGoal
-  ].filter(Boolean).length;
+function getOnboardingCompletionCount() {
+  return onboardingFlow.filter((step) => step.isComplete(state.memory)).length;
+}
 
-  return !state.memory.meta.intakeComplete || requiredCount < 4;
+function buildMissingFieldTips() {
+  const tips = [];
+  if (!state.memory.core.region) tips.push("地区");
+  if (!state.memory.core.industry && !state.memory.core.mainBusiness) tips.push("行业");
+  if (!state.memory.profile.companyHistory) tips.push("经营阶段");
+  if (!state.memory.core.currentGoal) tips.push("资金用途");
+  return tips.slice(0, 3);
+}
+
+function needsOnboarding() {
+  return !state.memory.meta.intakeComplete || getOnboardingCompletionCount() < onboardingFlow.length;
 }
 
 function isOnboardingActive() {
@@ -549,13 +739,12 @@ function addMessage(role, text) {
 }
 
 function formatMarkdown(text) {
-  const lines = escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .split(/\n/);
-
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
   const chunks = [];
   let listType = null;
   let listItems = [];
+  let blockquoteLines = [];
+  let tableRows = [];
 
   function flushList() {
     if (!listType || !listItems.length) return;
@@ -565,50 +754,216 @@ function formatMarkdown(text) {
     listItems = [];
   }
 
+  function flushBlockquote() {
+    if (!blockquoteLines.length) return;
+    const body = blockquoteLines.map((line) => `<p>${formatInline(line)}</p>`).join("");
+    chunks.push(`<blockquote>${body}</blockquote>`);
+    blockquoteLines = [];
+  }
+
+  function flushTable() {
+    if (!tableRows.length) return;
+    const parsed = parseTable(tableRows);
+    if (parsed) {
+      chunks.push(parsed);
+    } else {
+      chunks.push(...tableRows.map((row) => `<p>${formatInline(row)}</p>`));
+    }
+    tableRows = [];
+  }
+
   for (const rawLine of lines) {
     const line = rawLine.trim();
 
     if (!line) {
       flushList();
+      flushBlockquote();
+      flushTable();
+      continue;
+    }
+
+    if (isTableRow(line)) {
+      flushList();
+      flushBlockquote();
+      tableRows.push(line);
+      continue;
+    }
+
+    flushTable();
+
+    if (/^###\s+/.test(line)) {
+      flushList();
+      flushBlockquote();
+      chunks.push(`<h4>${formatInline(line.replace(/^###\s+/, ""))}</h4>`);
       continue;
     }
 
     if (/^##\s+/.test(line)) {
       flushList();
-      chunks.push(`<h3>${line.replace(/^##\s+/, "")}</h3>`);
+      flushBlockquote();
+      chunks.push(`<h3>${formatInline(line.replace(/^##\s+/, ""))}</h3>`);
       continue;
     }
 
-    if (/^###\s+/.test(line)) {
+    if (/^(---|\*\*\*)+$/.test(line)) {
       flushList();
-      chunks.push(`<h4>${line.replace(/^###\s+/, "")}</h4>`);
+      flushBlockquote();
+      chunks.push("<hr />");
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      flushList();
+      blockquoteLines.push(line.replace(/^>\s?/, ""));
       continue;
     }
 
     if (/^\d+\.\s+/.test(line)) {
+      flushBlockquote();
       if (listType !== "ol") {
         flushList();
         listType = "ol";
       }
-      listItems.push(`<li>${line.replace(/^\d+\.\s+/, "")}</li>`);
+      listItems.push(`<li>${formatInline(line.replace(/^\d+\.\s+/, ""))}</li>`);
       continue;
     }
 
     if (/^[-*•]\s+/.test(line)) {
+      flushBlockquote();
       if (listType !== "ul") {
         flushList();
         listType = "ul";
       }
-      listItems.push(`<li>${line.replace(/^[-*•]\s+/, "")}</li>`);
+      listItems.push(`<li>${formatInline(line.replace(/^[-*•]\s+/, ""))}</li>`);
       continue;
     }
 
     flushList();
-    chunks.push(`<p>${line}</p>`);
+    flushBlockquote();
+    chunks.push(`<p>${formatInline(line)}</p>`);
   }
 
   flushList();
+  flushBlockquote();
+  flushTable();
   return chunks.join("");
+}
+
+function parseTable(rows) {
+  const parsedRows = rows
+    .map((row) => splitTableRow(row))
+    .filter((cells) => cells.length >= 2 && cells.some((cell) => cell));
+
+  if (parsedRows.length < 2) return "";
+
+  const dividerIndex = rows.findIndex((row) => isTableDivider(row));
+  const headerCells = parsedRows[0];
+  const bodyRows = dividerIndex === 1 ? parsedRows.slice(1) : parsedRows.slice(1);
+
+  const body = bodyRows
+    .filter((cells) => !cells.every((cell) => /^:?-{3,}:?$/.test(cell)))
+    .map((cells) => `<tr>${cells.map((cell) => `<td>${formatInline(cell)}</td>`).join("")}</tr>`)
+    .join("");
+
+  if (!body) return "";
+
+  return `
+    <table>
+      <thead><tr>${headerCells.map((cell) => `<th>${formatInline(cell)}</th>`).join("")}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+}
+
+function isTableRow(line) {
+  return (/^\|.+\|$/.test(line) || isTableDivider(line)) && splitTableRow(line).length >= 2;
+}
+
+function isTableDivider(line) {
+  return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line);
+}
+
+function splitTableRow(row) {
+  return row
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function formatInline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+function parseReplySections(text) {
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const sections = [];
+  let current = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const heading = line.match(/^##\s+(.+)/);
+    if (heading) {
+      if (current) {
+        current.body = current.body.join("\n").trim();
+        sections.push(current);
+      }
+      current = { title: heading[1].trim(), body: [] };
+      continue;
+    }
+
+    if (!current) {
+      current = { title: "回答", body: [] };
+    }
+    current.body.push(rawLine);
+  }
+
+  if (current) {
+    current.body = current.body.join("\n").trim();
+    sections.push(current);
+  }
+
+  return sections.filter((section) => section.title && section.body);
+}
+
+function pickBoardSections(sections) {
+  const excluded = /下一步|服务说明|信息安全提醒/;
+  const preferred = [
+    /先给结论|现状判断|风险等级|案例背景|名称\/简介|文档初稿/,
+    /你现在可以做什么|改进动作|服务动作|核验动作|可借鉴点|官方入口|可了解路径|工具模板|首屏问题/,
+    /需要准备的材料\/信息|材料清单|待确认字段|标签|审核风险/,
+    /风险提醒|风险点|边界提醒|风险边界/
+  ];
+
+  const selected = [];
+  const used = new Set();
+
+  for (const rule of preferred) {
+    const match = sections.find((section, index) => !used.has(index) && rule.test(section.title));
+    if (match) {
+      const index = sections.indexOf(match);
+      used.add(index);
+      selected.push(match);
+    }
+  }
+
+  const fallback = sections.filter((section, index) => !used.has(index) && !excluded.test(section.title));
+  return [...selected, ...fallback].slice(0, 4);
+}
+
+function extractSectionBody(sections, pattern) {
+  const section = sections.find((item) => pattern.test(item.title));
+  return section ? section.body : "";
+}
+
+function cardToneForTitle(title) {
+  if (/风险|边界/.test(title)) return "tone-risk";
+  if (/材料|字段|标签/.test(title)) return "tone-material";
+  if (/下一步|动作|入口|清单|结论/.test(title)) return "tone-action";
+  return "";
 }
 
 function renderTags(items) {
@@ -626,7 +981,7 @@ function setLoading(isLoading) {
 
 function createDefaultMemory() {
   return {
-    version: 3,
+    version: 4,
     core: {
       mainBusiness: "",
       industry: "",
@@ -688,4 +1043,8 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }

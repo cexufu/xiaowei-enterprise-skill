@@ -13,7 +13,7 @@
           <span class="brand-badge">企</span>
           <div>
             <h1>小微企业服务助手</h1>
-            <p>服务中小微企业的政策、经营与融资准备咨询助手</p>
+            <p>面向中小微企业的政策、经营、融资准备与风险识别工作台</p>
           </div>
         </div>
 
@@ -23,137 +23,93 @@
               <h2>企业档案</h2>
               <span id="memoryStatus">首次使用建议先建立企业档案</span>
             </div>
-            <button id="refreshMemoryButton" class="ghost-button" type="button">更新</button>
+            <button id="refreshMemoryButton" class="ghost-button" type="button">重填</button>
+          </div>
+
+          <div class="progress-meta">
+            <div class="progress-track" aria-hidden="true">
+              <span id="memoryProgressBar"></span>
+            </div>
+            <strong id="memoryProgressText">0 / 4</strong>
           </div>
 
           <div id="memorySummary" class="memory-summary empty">
-            还没有记录企业背景。开始几轮简短对话后，后续问题会默认基于你的企业情况来理解。
+            先回答 4 个必要问题，后续建议就会默认结合你的企业背景，不再重复从零开始。
           </div>
         </section>
 
         <section class="sidebar-section quick">
           <div class="section-head">
             <div>
-              <h2>咨询场景</h2>
-              <span>仅生成问题草稿，可自行修改后发送</span>
+              <h2>直接进入的场景</h2>
+              <span>只会生成提问草稿，不会自动发送</span>
             </div>
           </div>
-          <button data-scene="policy" type="button">政策查询</button>
-          <button data-scene="financing" type="button">融资准备</button>
-          <button data-scene="document" type="button">材料起草</button>
-          <button data-scene="compliance" type="button">风险识别</button>
-          <button data-scene="operations" type="button">经营梳理</button>
-          <button data-scene="cases" type="button">案例参考</button>
+
+          <button data-scene="policy" type="button">
+            <strong>政策查询</strong>
+            <span>先看方向、入口和核验点</span>
+          </button>
+          <button data-scene="financing" type="button">
+            <strong>融资准备</strong>
+            <span>梳理用途、材料和风险动作</span>
+          </button>
+          <button data-scene="document" type="button">
+            <strong>材料起草</strong>
+            <span>快速组织说明材料初稿</span>
+          </button>
+          <button data-scene="compliance" type="button">
+            <strong>风险识别</strong>
+            <span>识别收费、合同与宣传风险</span>
+          </button>
+          <button data-scene="operations" type="button">
+            <strong>经营梳理</strong>
+            <span>围绕库存、回款和现金流排查</span>
+          </button>
+          <button data-scene="cases" type="button">
+            <strong>案例参考</strong>
+            <span>整理克制、可复用的案例表达</span>
+          </button>
         </section>
 
-        <section class="sidebar-section scope-list">
-          <h2>可以提供的帮助</h2>
-          <ul>
-            <li>梳理政策方向、申报线索和核验重点</li>
-            <li>整理融资准备思路、资料清单和用途说明</li>
-            <li>起草经营情况说明、贷款用途说明等基础文本</li>
-            <li>识别宣传话术、收费条款、合同表述中的风险点</li>
-            <li>围绕库存、回款、现金流等经营问题提供排查建议</li>
-          </ul>
-        </section>
-
-        <p class="privacy-note">
-          请不要输入身份证号、银行卡号、验证码、完整征信或完整流水。这里仅需描述业务情况、材料类型和当前问题。
-        </p>
-      </aside>
-
-      <section class="workspace">
-        <header class="hero">
-          <div class="hero-copy">
-            <span id="statusBadge" class="status-badge">服务已就绪</span>
-            <h2 id="heroTitle">先用几轮简短对话建立企业档案，后续建议都会基于你的企业背景来理解</h2>
-            <p id="healthHint">正在读取服务状态…</p>
-          </div>
-
-          <div class="hero-grid">
-            <article class="hero-tile">
-              <strong>先了解企业情况</strong>
-              <p>记录你做什么、在哪做、主要困境和目标，避免每次都从头解释。</p>
-            </article>
-            <article class="hero-tile">
-              <strong>再进入具体问题</strong>
-              <p>后续无论是政策、融资准备还是经营问题，都会默认基于这份背景继续。</p>
-            </article>
-            <article class="hero-tile">
-              <strong>优先给可执行建议</strong>
-              <p>重点整理事项方向、资料清单、风险提醒和下一步动作，而不是空泛回答。</p>
-            </article>
-          </div>
-        </header>
-
-        <section class="chat-shell">
-          <div id="messages" class="messages"></div>
-
-          <form id="askForm" class="composer">
-            <label class="composer-label" for="questionInput">请直接输入你的回答或问题</label>
-            <textarea
-              id="questionInput"
-              placeholder="例如：我们在苏州做制造，主要给设备厂供配件，最近回款慢，想看看 50 万以内周转资金该怎么准备。"
-            ></textarea>
-            <div class="composer-actions">
-              <p id="composerTip" class="composer-tip">如果正在建立企业档案，你的输入会先被记录为背景信息；档案建立后，再进入具体咨询。</p>
-              <button id="askButton" type="submit">继续</button>
+        <section class="sidebar-section memory-groups">
+          <div class="memory-group">
+            <div class="section-head compact">
+              <div>
+                <h2>长期背景</h2>
+                <span>行业、区域、困境、目标</span>
+              </div>
             </div>
-          </form>
-        </section>
-      </section>
-
-      <aside class="inspector">
-        <section class="inspector-section">
-          <div class="section-head">
-            <h2>本次咨询摘要</h2>
-            <span>根据当前问题自动整理</span>
+            <div id="coreMemory" class="tag-list empty">建立企业档案后，会在这里显示长期背景。</div>
           </div>
-          <dl class="trace">
-            <div><dt>咨询事项</dt><dd id="traceIntent">待开始</dd></div>
-            <div><dt>服务方式</dt><dd id="traceMode">待开始</dd></div>
-            <div><dt>风险提示</dt><dd id="traceGuardrail">-</dd></div>
-            <div><dt>信息提醒</dt><dd id="traceSensitive">-</dd></div>
-            <div><dt>资料完整度</dt><dd id="traceProfile">-</dd></div>
-          </dl>
-        </section>
 
-        <section class="inspector-section">
-          <div class="section-head">
-            <h2>长期背景</h2>
-            <span>后续咨询会默认带入</span>
+          <div class="memory-group">
+            <div class="section-head compact">
+              <div>
+                <h2>动态偏好</h2>
+                <span>历史、偏好和重点关注</span>
+              </div>
+            </div>
+            <div id="profileMemory" class="tag-list empty">例如企业历史、沟通偏好、重点关注方向等。</div>
           </div>
-          <div id="coreMemory" class="tag-list empty">建立企业档案后，会在这里显示长期背景。</div>
         </section>
 
-        <section class="inspector-section">
-          <div class="section-head">
-            <h2>补充背景</h2>
-            <span>历史、偏好和补充信息</span>
-          </div>
-          <div id="profileMemory" class="tag-list empty">例如企业历史、沟通偏好、重点关注方向等。</div>
-        </section>
-
-        <section class="inspector-section">
-          <div class="section-head">
-            <h2>近期沟通</h2>
-            <span>最近几次已记住的主题</span>
+        <section class="sidebar-section">
+          <div class="section-head compact">
+            <div>
+              <h2>近期主题</h2>
+              <span>最近几次咨询里记住的内容</span>
+            </div>
           </div>
           <div id="interactionMemory" class="history-list empty">还没有近期沟通记录。</div>
         </section>
 
-        <section class="inspector-section">
-          <div class="section-head">
-            <h2>建议补充</h2>
-            <span>补充基础信息会更有帮助</span>
-          </div>
-          <div id="traceMissing" class="tag-list empty">建议补充地区、行业、主要困境、当前目标等基础信息。</div>
-        </section>
-
-        <section class="inspector-section boundary-list">
-          <div class="section-head">
-            <h2>服务边界</h2>
-            <span>请以正式机构和合同约定为准</span>
+        <section class="sidebar-section boundary-list">
+          <div class="section-head compact">
+            <div>
+              <h2>服务边界</h2>
+              <span>请以正式机构、合同和官方口径为准</span>
+            </div>
           </div>
           <ul>
             <li>不承诺额度、利率、审批结果或放款时间</li>
@@ -161,7 +117,110 @@
             <li>不替代正式的法律、税务或持牌金融机构意见</li>
           </ul>
         </section>
+
+        <p class="privacy-note">
+          请不要输入身份证号、银行卡号、验证码、完整征信或完整流水。这里只需描述业务情况、材料类型和当前问题。
+        </p>
       </aside>
+
+      <section class="workspace">
+        <header class="hero">
+          <div class="hero-copy">
+            <span id="statusBadge" class="status-badge">服务已就绪</span>
+            <h2 id="heroTitle">先用 4 个问题建立企业档案，后续建议会从你的实际经营情况出发</h2>
+            <p id="healthHint">正在读取服务状态…</p>
+          </div>
+
+          <div class="hero-metrics">
+            <article class="hero-tile">
+              <strong>4 轮建档</strong>
+              <p>只收集必要背景，不让用户一开始填太多。</p>
+            </article>
+            <article class="hero-tile">
+              <strong>结构化结果</strong>
+              <p>每次咨询自动整理成事项、材料、风险和下一步。</p>
+            </article>
+            <article class="hero-tile">
+              <strong>延续式记忆</strong>
+              <p>后续问题默认带入企业背景与近期主题。</p>
+            </article>
+          </div>
+        </header>
+
+        <section class="result-board">
+          <div class="board-head">
+            <div>
+              <h2>本次结果看板</h2>
+              <p id="boardHint">发起一次咨询后，这里会自动整理结构化结果。</p>
+            </div>
+          </div>
+
+          <div class="trace-strip">
+            <div class="trace-pill">
+              <span>咨询事项</span>
+              <strong id="traceIntent">待开始</strong>
+            </div>
+            <div class="trace-pill">
+              <span>服务方式</span>
+              <strong id="traceMode">待开始</strong>
+            </div>
+            <div class="trace-pill">
+              <span>风险提示</span>
+              <strong id="traceGuardrail">-</strong>
+            </div>
+            <div class="trace-pill">
+              <span>信息提醒</span>
+              <strong id="traceSensitive">-</strong>
+            </div>
+            <div class="trace-pill">
+              <span>资料完整度</span>
+              <strong id="traceProfile">-</strong>
+            </div>
+          </div>
+
+          <div id="resultCards" class="result-cards empty">
+            <article class="empty-card">
+              <strong>还没有咨询结果</strong>
+              <p>先建立企业档案，再提一个具体问题。系统会自动把回答拆成可执行卡片，而不是只返回一段大模型文字。</p>
+            </article>
+          </div>
+
+          <div class="board-footer">
+            <section class="board-side">
+              <h3>建议补充</h3>
+              <div id="traceMissing" class="tag-list empty">建议补充地区、行业、主要困境、当前目标等基础信息。</div>
+            </section>
+
+            <section class="board-side">
+              <h3>下一步操作</h3>
+              <div id="followupSuggestions" class="action-list empty">发起一次咨询后，这里会给出下一轮可直接发送的建议动作。</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="chat-shell">
+          <div class="chat-head">
+            <div>
+              <h2>对话区</h2>
+              <p>直接说问题，或者先回答当前正在收集的企业背景问题。</p>
+            </div>
+          </div>
+
+          <div id="messages" class="messages"></div>
+
+          <form id="askForm" class="composer">
+            <label class="composer-label" for="questionInput">直接输入你的回答或问题</label>
+            <textarea
+              id="questionInput"
+              placeholder="例如：我们在苏州做设备配件，最近账期拉长，想围绕 50 万以内周转资金先把融资准备做扎实。"
+            ></textarea>
+            <div class="composer-actions">
+              <p id="composerTip" class="composer-tip">如果当前正在建立企业档案，你的输入会优先被记录为背景信息。</p>
+              <button id="askButton" type="submit">继续</button>
+            </div>
+          </form>
+        </section>
+      </section>
     </main>
 
     <script src="/app.js" type="module"></script>
