@@ -113,6 +113,7 @@ server.listen(PORT, "0.0.0.0", () => {
 async function handleSkillRun(req, res) {
   const body = await readJson(req);
   const userText = String(body.message || "").trim();
+  const debugPrompt = Boolean(body.debugPrompt);
 
   if (!userText) {
     return sendJson(res, 400, { error: "Empty message" });
@@ -125,6 +126,11 @@ async function handleSkillRun(req, res) {
   const guardrail = findGuardrail(userText);
   const sensitive = hasSensitiveSignal(userText);
   const trace = buildTrace({ userText, activeModule, guardrail, sensitive, profile });
+  const instructions = loadSkillInstructions();
+  const prompt = buildModelPrompt({ userText, activeModule, profile, memory, sensitive });
+  const debug = debugPrompt
+    ? buildDebugPayload({ activeModule, instructions, prompt })
+    : undefined;
 
   if (guardrail) {
     const reply = buildGuardrailReply(guardrail, activeModule);
@@ -135,7 +141,8 @@ async function handleSkillRun(req, res) {
       mode: "guardrail",
       blocked: true,
       trace,
-      review: reviewReply(reply, activeModule, true)
+      review: reviewReply(reply, activeModule, true),
+      debug
     });
   }
 
@@ -152,12 +159,10 @@ async function handleSkillRun(req, res) {
       mode: "runtime-fallback",
       blocked: false,
       trace,
-      review: reviewReply(reply, activeModule, false)
+      review: reviewReply(reply, activeModule, false),
+      debug
     });
   }
-
-  const instructions = loadSkillInstructions();
-  const prompt = buildModelPrompt({ userText, activeModule, profile, memory, sensitive });
 
   let upstream;
   const controller = new AbortController();
@@ -217,7 +222,8 @@ async function handleSkillRun(req, res) {
     mode: "model",
     blocked: false,
     trace,
-    review: reviewReply(reply, activeModule, false)
+    review: reviewReply(reply, activeModule, false),
+    debug
   });
 }
 
@@ -704,6 +710,15 @@ function reviewReply(reply, module, blocked) {
 
 function extractChatText(data) {
   return data.choices?.[0]?.message?.content?.trim() || "";
+}
+
+function buildDebugPayload({ activeModule, instructions, prompt }) {
+  return {
+    module: activeModule,
+    moduleTitle: modules[activeModule]?.title || activeModule,
+    systemPrompt: instructions,
+    userPrompt: prompt
+  };
 }
 
 function normalizeReply({ reply, userText, activeModule, profile, memory, sensitive }) {

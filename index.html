@@ -198,6 +198,38 @@
           </div>
         </section>
 
+        <section id="debugPanel" class="debug-panel hidden">
+          <div class="board-head">
+            <div>
+              <h2>Prompt 调试</h2>
+              <p>仅用于测试 skill 的专业性，不对正式用户展示。</p>
+            </div>
+          </div>
+
+          <div class="debug-meta">
+            <div class="trace-pill">
+              <span>当前模块</span>
+              <strong id="debugModule">-</strong>
+            </div>
+            <div class="trace-pill">
+              <span>调用方式</span>
+              <strong id="debugMode">-</strong>
+            </div>
+          </div>
+
+          <div class="debug-grid">
+            <section class="debug-block">
+              <h3>System Prompt</h3>
+              <pre id="debugSystemPrompt">等待一次真实调用。</pre>
+            </section>
+
+            <section class="debug-block">
+              <h3>User Prompt</h3>
+              <pre id="debugUserPrompt">等待一次真实调用。</pre>
+            </section>
+          </div>
+        </section>
+
         <section class="chat-shell">
           <div class="chat-head">
             <div>

@@ -358,7 +358,8 @@ button {
 
 .hero,
 .result-board,
-.chat-shell {
+.chat-shell,
+.debug-panel {
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -441,6 +442,15 @@ button {
 
 .result-board {
   gap: 14px;
+}
+
+.debug-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.debug-panel.hidden {
+  display: none;
 }
 
 .board-head {
@@ -632,6 +642,45 @@ button {
   gap: 14px;
 }
 
+.debug-meta,
+.debug-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.debug-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.debug-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.debug-block {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.debug-block h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+
+.debug-block pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
 .board-side {
   gap: 10px;
   padding: 14px 16px;
@@ -805,7 +854,9 @@ button {
   .hero-metrics,
   .result-cards,
   .board-footer,
-  .trace-strip {
+  .trace-strip,
+  .debug-meta,
+  .debug-grid {
     grid-template-columns: 1fr;
   }
 

@@ -1,5 +1,6 @@
 const MEMORY_KEY = "xiaowei-enterprise-memory-v3";
 const MAX_INTERACTIONS = 8;
+const DEBUG_PROMPT_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
 
 const onboardingFlow = [
   {
@@ -93,6 +94,12 @@ const nodes = {
   resultCards: document.querySelector("#resultCards"),
   boardHint: document.querySelector("#boardHint"),
   followupSuggestions: document.querySelector("#followupSuggestions")
+  ,
+  debugPanel: document.querySelector("#debugPanel"),
+  debugModule: document.querySelector("#debugModule"),
+  debugMode: document.querySelector("#debugMode"),
+  debugSystemPrompt: document.querySelector("#debugSystemPrompt"),
+  debugUserPrompt: document.querySelector("#debugUserPrompt")
 };
 
 const state = {
@@ -106,6 +113,7 @@ const state = {
 init();
 
 async function init() {
+  toggleDebugPanel();
   bindEvents();
   renderMemoryPanels();
   renderHero();
@@ -320,6 +328,7 @@ async function runSkill(question, module = "auto") {
       body: JSON.stringify({
         module,
         message: question,
+        debugPrompt: DEBUG_PROMPT_MODE,
         profile: buildProfileFromMemory(state.memory),
         memory: state.memory
       })
@@ -337,6 +346,7 @@ async function runSkill(question, module = "auto") {
     addMessage("assistant", data.reply);
     renderTrace(data);
     renderResultBoard(data);
+    renderDebugPrompt(data);
     appendInteractionMemory(question, data);
     persistMemory();
     renderMemoryPanels();
@@ -489,6 +499,29 @@ function renderResultBoard(data) {
       </article>
     `;
   renderFollowupSuggestions(data, sections);
+}
+
+function toggleDebugPanel() {
+  if (!nodes.debugPanel) return;
+  nodes.debugPanel.classList.toggle("hidden", !DEBUG_PROMPT_MODE);
+}
+
+function renderDebugPrompt(data) {
+  if (!DEBUG_PROMPT_MODE || !nodes.debugPanel) return;
+
+  const debug = data?.debug;
+  if (!debug) {
+    nodes.debugModule.textContent = "-";
+    nodes.debugMode.textContent = "-";
+    nodes.debugSystemPrompt.textContent = "等待一次真实调用。";
+    nodes.debugUserPrompt.textContent = "等待一次真实调用。";
+    return;
+  }
+
+  nodes.debugModule.textContent = debug.moduleTitle || debug.module || "-";
+  nodes.debugMode.textContent = modeLabel(data.mode);
+  nodes.debugSystemPrompt.textContent = debug.systemPrompt || "当前调用未发送 system prompt。";
+  nodes.debugUserPrompt.textContent = debug.userPrompt || "当前调用未发送 user prompt。";
 }
 
 function renderResultCard(section) {
