@@ -276,24 +276,24 @@ async function loadHealth() {
 
 function renderHealth(data) {
   if (!data) {
-    nodes.statusBadge.textContent = "服务已开启";
+    nodes.statusBadge.textContent = "离线可用";
     nodes.statusBadge.className = "status-badge muted";
     nodes.healthHint.textContent = "你可以先建立企业档案，再直接进入具体咨询。";
     return;
   }
 
-  nodes.statusBadge.textContent = "服务已就绪";
-  nodes.statusBadge.className = data.hasApiKey ? "status-badge live" : "status-badge";
+  nodes.statusBadge.textContent = data.hasApiKey ? "服务已就绪" : "基础模式";
+  nodes.statusBadge.className = "status-badge live";
   nodes.healthHint.textContent = needsOnboarding()
-    ? "建议先完成 4 轮企业档案。这样结果看板里的内容会明显更具体。"
-    : "企业档案已就绪。接下来可以直接提问题，系统会自动整理结构化结果。";
+    ? "建议先完成 4 轮建档，后面的结果会更具体。"
+    : "企业档案已就绪。接下来可以直接提问题。";
 }
 
 function renderHero() {
   renderHealth(state.health);
 
   if (needsOnboarding() || isOnboardingActive()) {
-    nodes.heroTitle.textContent = "先用 4 个问题建立企业档案，后续建议会从你的实际经营情况出发";
+    nodes.heroTitle.textContent = "先用 4 个问题建立企业档案，后续建议直接结合你的企业情况";
     nodes.composerTip.textContent = isOnboardingActive()
       ? `当前正在建立企业档案，第 ${state.onboardingIndex + 1}/${onboardingFlow.length} 轮。`
       : "先建立企业档案，后续问题就不需要重复介绍背景。";
@@ -301,7 +301,7 @@ function renderHero() {
     return;
   }
 
-  nodes.heroTitle.textContent = "企业背景已经记住了。接下来直接说问题，我会给你结构化的事项、材料、风险和下一步";
+  nodes.heroTitle.textContent = "企业背景已记住。接下来直接说问题，我会给你结构化结果";
   nodes.composerTip.textContent = "你可以直接说场景、用途、已有材料和顾虑，我会按结构化方式替你整理。";
   nodes.askButton.textContent = "获取建议";
 }

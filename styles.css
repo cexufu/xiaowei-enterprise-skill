@@ -29,7 +29,8 @@ body {
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.6;
 }
 
 button,
@@ -44,7 +45,7 @@ button {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 296px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -56,14 +57,14 @@ button {
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(14px);
-  padding: 28px 22px 32px;
+  padding: 24px 20px 28px;
 }
 
 .workspace {
   display: grid;
   align-content: start;
-  gap: 24px;
-  padding: 32px 36px 40px;
+  gap: 20px;
+  padding: 28px 30px 36px;
 }
 
 .brand,
@@ -85,9 +86,9 @@ button {
 
 .brand {
   grid-template-columns: 48px minmax(0, 1fr);
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .brand h1,
@@ -118,8 +119,9 @@ button {
 }
 
 .brand h1 {
-  font-size: 24px;
-  line-height: 1.1;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 650;
 }
 
 .brand p,
@@ -141,9 +143,15 @@ button {
   color: var(--muted);
 }
 
+.brand p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .sidebar-section {
   gap: 14px;
-  padding: 18px 0;
+  padding: 16px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -164,14 +172,15 @@ button {
 }
 
 .section-head h2 {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.3;
+  font-weight: 650;
 }
 
 .section-head span {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -213,7 +222,7 @@ button {
 }
 
 .progress-meta strong {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .memory-summary {
@@ -256,7 +265,7 @@ button {
 .memory-item strong,
 .history-item p {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--ink);
 }
@@ -277,9 +286,14 @@ button {
 }
 
 .quick button strong {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.3;
   color: var(--ink);
+}
+
+.quick button span {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .quick button:hover,
@@ -332,19 +346,20 @@ button {
   padding-left: 18px;
   display: grid;
   gap: 8px;
-  line-height: 1.6;
+  line-height: 1.55;
+  font-size: 13px;
 }
 
 .privacy-note {
   margin: 18px 0 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
 .hero,
 .result-board,
 .chat-shell {
-  padding: 28px;
+  padding: 22px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
@@ -352,7 +367,7 @@ button {
 }
 
 .hero {
-  gap: 22px;
+  gap: 18px;
 }
 
 .hero-copy {
@@ -361,12 +376,12 @@ button {
 
 .status-badge {
   width: fit-content;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid #d9caab;
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -383,15 +398,16 @@ button {
 }
 
 .hero h2 {
-  max-width: 18ch;
-  font-size: clamp(30px, 3.8vw, 44px);
-  line-height: 1.08;
+  max-width: 30ch;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.18;
+  font-weight: 650;
 }
 
 .hero p {
-  max-width: 64ch;
-  font-size: 16px;
-  line-height: 1.7;
+  max-width: 72ch;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .hero-metrics {
@@ -400,7 +416,7 @@ button {
 }
 
 .hero-tile {
-  padding: 16px;
+  padding: 14px;
   background: var(--surface-soft);
 }
 
@@ -411,19 +427,20 @@ button {
 }
 
 .hero-tile strong {
-  margin-bottom: 8px;
-  font-size: 15px;
+  margin-bottom: 6px;
+  font-size: 13px;
   line-height: 1.35;
   color: var(--ink);
+  font-weight: 650;
 }
 
 .hero-tile p {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .result-board {
-  gap: 18px;
+  gap: 14px;
 }
 
 .board-head {
@@ -435,14 +452,15 @@ button {
 
 .board-head h2,
 .chat-head h2 {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.2;
+  font-weight: 650;
 }
 
 .board-head p,
 .chat-head p {
   margin-top: 6px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -453,16 +471,16 @@ button {
 
 .trace-pill {
   gap: 6px;
-  padding: 14px;
+  padding: 12px;
   background: var(--surface-soft);
 }
 
 .trace-pill span {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .trace-pill strong {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--ink);
 }
@@ -478,7 +496,7 @@ button {
 
 .result-card,
 .empty-card {
-  padding: 18px;
+  padding: 16px;
 }
 
 .result-card {
@@ -488,8 +506,9 @@ button {
 
 .result-card h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.3;
+  font-weight: 650;
 }
 
 .result-card.tone-risk {
@@ -509,6 +528,8 @@ button {
 
 .result-card-body {
   color: var(--ink);
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .result-card-body h4,
@@ -590,7 +611,7 @@ button {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -613,15 +634,16 @@ button {
 
 .board-side {
   gap: 10px;
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-radius: 10px;
   background: var(--surface-soft);
   border: 1px solid var(--line);
 }
 
 .board-side h3 {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.3;
+  font-weight: 650;
 }
 
 .action-list {
@@ -635,8 +657,9 @@ button {
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink);
-  padding: 10px 14px;
+  padding: 9px 12px;
   line-height: 1.2;
+  font-size: 12px;
 }
 
 .suggestion-chip:hover,
@@ -650,21 +673,22 @@ button {
 }
 
 .chat-head {
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .messages {
-  gap: 16px;
+  gap: 14px;
   max-height: 560px;
   overflow-y: auto;
   padding-right: 4px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .message {
   max-width: min(860px, 92%);
-  padding: 18px 20px;
-  line-height: 1.8;
+  padding: 16px 18px;
+  line-height: 1.7;
+  font-size: 14px;
 }
 
 .message.user {
@@ -685,24 +709,25 @@ button {
 
 .composer {
   gap: 12px;
-  padding: 20px 0 28px;
+  padding: 16px 0 22px;
   border-top: 1px solid var(--line);
 }
 
 .composer-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 132px;
+  min-height: 112px;
   resize: vertical;
   padding: 14px 16px;
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: var(--surface);
   color: var(--ink);
+  font-size: 14px;
   line-height: 1.7;
   outline: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -722,17 +747,18 @@ button {
 
 .composer-tip {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
 .composer button {
   flex: 0 0 auto;
-  padding: 12px 18px;
+  padding: 11px 16px;
   border: none;
   border-radius: 10px;
   background: var(--accent);
   color: #ffffff;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -762,18 +788,18 @@ button {
 
 @media (max-width: 900px) {
   .workspace {
-    padding: 22px 18px 28px;
+    padding: 18px 16px 24px;
   }
 
   .hero,
   .result-board,
   .chat-shell {
-    padding: 20px;
+    padding: 18px;
   }
 
   .hero h2 {
     max-width: none;
-    font-size: 30px;
+    font-size: 24px;
   }
 
   .hero-metrics,
