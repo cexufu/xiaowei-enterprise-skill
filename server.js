@@ -142,7 +142,7 @@ async function handleSkillRun(req, res) {
     const reply = `${buildRuntimeReply({ userText, activeModule, profile, sensitive })}
 
 ## 模型配置提醒
-当前还没有配置 \`DEEPSEEK_API_KEY\`，所以这是规则兜底输出。部署到 Render 后补上环境变量，就会改为真实模型回答。`;
+当前还没有配置 \`DEEPSEEK_API_KEY\`，所以这是规则兜底输出。补上环境变量后，就会改为真实模型回答。`;
 
     return sendJson(res, 200, {
       reply,

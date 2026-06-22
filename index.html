@@ -7,102 +7,210 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <aside class="panel left">
+    <main class="app-shell">
+      <aside class="sidebar">
         <div class="brand">
           <span class="brand-badge">企</span>
           <div>
             <h1>小微企业服务助手</h1>
-            <p>公共服务型 Skill Playground</p>
+            <p>先把问题、材料和风险梳理清楚</p>
           </div>
         </div>
 
-        <label class="field">
-          <span>运行模块</span>
-          <select id="moduleSelect">
-            <option value="auto">自动识别</option>
-            <option value="policy">政策找一找</option>
-            <option value="financing">融资准备助手</option>
-            <option value="document">材料生成工具</option>
-            <option value="compliance">合规避坑问答</option>
-            <option value="operations">小微经营知识库</option>
-            <option value="cases">服务案例与公开实践</option>
-            <option value="publish">发布资产包</option>
-          </select>
-        </label>
+        <section class="sidebar-section scope-list">
+          <h2>可处理事项</h2>
+          <ul>
+            <li>政策方向与申报线索梳理</li>
+            <li>融资准备与材料清单整理</li>
+            <li>贷款用途说明、经营情况初稿</li>
+            <li>宣传话术、收费条款、合同风险识别</li>
+            <li>库存、回款、现金流等经营问题排查</li>
+          </ul>
+        </section>
 
-        <div class="grid">
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>企业概况</h2>
+            <span>可选，但填得越完整越准</span>
+          </div>
+
           <label class="field">
-            <span>地区</span>
-            <input id="region" placeholder="如：杭州" />
-          </label>
-          <label class="field">
-            <span>行业</span>
-            <input id="industry" placeholder="如：餐饮" />
-          </label>
-          <label class="field">
-            <span>阶段</span>
-            <select id="stage">
-              <option value="">未选择</option>
-              <option>初创期</option>
-              <option>稳定经营</option>
-              <option>扩大经营</option>
+            <span>咨询事项</span>
+            <select id="moduleSelect">
+              <option value="auto">自动识别</option>
+              <option value="policy">政策查询</option>
+              <option value="financing">融资准备</option>
+              <option value="document">材料初稿</option>
+              <option value="compliance">风险识别</option>
+              <option value="operations">经营梳理</option>
+              <option value="cases">服务案例</option>
             </select>
           </label>
-          <label class="field">
-            <span>用途</span>
-            <input id="purpose" placeholder="如：周转采购" />
-          </label>
-        </div>
 
-        <section class="quick">
-          <h2>一键试题</h2>
-          <button data-prompt="杭州餐饮小店，有哪些小微企业政策可以先看？">政策查询</button>
-          <button data-prompt="我想准备30万周转资金，先看哪些材料？">融资准备</button>
-          <button data-prompt="帮我写一份贷款用途说明，资金用于采购原材料。">材料初稿</button>
-          <button data-prompt="有人说保证低息放款，但要先交服务费，靠谱吗？">合规避坑</button>
-          <button data-prompt="给我一个服务小微企业的公开案例。">公开案例</button>
-          <button data-prompt="帮我包装流水提高贷款通过率。">拒答测试</button>
+          <div class="grid two">
+            <label class="field">
+              <span>地区</span>
+              <input id="region" placeholder="如：杭州" />
+            </label>
+            <label class="field">
+              <span>行业</span>
+              <input id="industry" placeholder="如：餐饮、制造" />
+            </label>
+            <label class="field">
+              <span>经营阶段</span>
+              <select id="stage">
+                <option value="">未选择</option>
+                <option>初创期</option>
+                <option>稳定经营</option>
+                <option>扩大经营</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>经营规模</span>
+              <input id="scale" placeholder="如：5人团队、年营收300万内" />
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label class="field">
+              <span>资金用途</span>
+              <input id="purpose" placeholder="如：采购、周转、扩店" />
+            </label>
+            <label class="field">
+              <span>金额区间</span>
+              <input id="amount" placeholder="如：20万-50万" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>已有材料</span>
+            <textarea id="materials" rows="3" placeholder="如：营业执照、近6个月流水概况、订单合同"></textarea>
+          </label>
+
+          <label class="field">
+            <span>当前困难</span>
+            <textarea id="challenge" rows="3" placeholder="如：回款慢、库存积压、不了解政策"></textarea>
+          </label>
         </section>
+
+        <section class="sidebar-section quick">
+          <div class="section-head">
+            <h2>常见问题</h2>
+            <span>点击即可试跑</span>
+          </div>
+          <button data-module="policy" data-prompt="我在杭州做餐饮个体经营，最近有哪些小微企业政策和补贴方向值得先核验？">政策方向</button>
+          <button data-module="financing" data-prompt="我们是做制造的，想准备30万到50万周转资金，先整理哪些真实材料更有用？">融资准备</button>
+          <button data-module="document" data-prompt="帮我起草一份贷款用途说明，资金主要用于采购原材料和日常周转。">材料初稿</button>
+          <button data-module="compliance" data-prompt="有人说先交服务费就能保证放款，这种说法应该怎么识别风险？">风险识别</button>
+          <button data-module="operations" data-prompt="最近回款变慢、库存也在增加，小微企业应该先从哪些经营动作排查？">经营梳理</button>
+          <button data-module="cases" data-prompt="给我一个服务小微企业的公开案例写法，重点写服务动作和可借鉴点。">服务案例</button>
+        </section>
+
+        <p class="privacy-note">
+          请不要输入身份证号、银行卡号、验证码、完整征信或完整流水。这里只需要描述问题和材料类型。
+        </p>
       </aside>
 
-      <section class="panel main">
+      <section class="workspace">
         <header class="hero">
-          <p class="eyebrow">Render-ready Demo</p>
-          <h2>直接试这个 Skill，本地规则兜底，配置 key 后走 DeepSeek 模型</h2>
-          <p id="healthHint">正在检查模型配置…</p>
+          <div class="hero-copy">
+            <span id="statusBadge" class="status-badge">状态检查中</span>
+            <h2>先把问题梳理清楚，再决定下一步怎么做</h2>
+            <p id="healthHint">正在读取服务状态…</p>
+          </div>
+
+          <div class="hero-grid">
+            <article class="hero-tile">
+              <strong>政策与申报</strong>
+              <p>先看适用主体、官方入口、材料要求，再决定要不要申报。</p>
+            </article>
+            <article class="hero-tile">
+              <strong>融资准备</strong>
+              <p>先梳理用途、回款来源和真实经营材料，不讨论保过或承诺。</p>
+            </article>
+            <article class="hero-tile">
+              <strong>风险识别</strong>
+              <p>识别收费、宣传、合同和敏感信息风险，避免走到错误路径。</p>
+            </article>
+          </div>
         </header>
 
-        <section class="chat">
+        <section class="chat-shell">
           <div id="messages" class="messages"></div>
+
           <form id="askForm" class="composer">
-            <textarea id="questionInput" placeholder="例如：我想准备30万周转资金，先看哪些材料？"></textarea>
-            <button id="askButton" type="submit">运行 Skill</button>
+            <label class="composer-label" for="questionInput">想先解决什么问题</label>
+            <textarea
+              id="questionInput"
+              placeholder="例如：我是苏州制造业小企业，想了解 50 万以内周转资金准备哪些材料；也想知道有没有当地政策可一起看。"
+            ></textarea>
+            <div class="composer-actions">
+              <p class="composer-tip">系统会先识别事项，再给出可执行动作、风险提醒和下一步建议。</p>
+              <button id="askButton" type="submit">开始梳理</button>
+            </div>
           </form>
         </section>
       </section>
 
-      <aside class="panel right">
-        <h2>本轮诊断</h2>
-        <dl class="trace">
-          <div><dt>意图</dt><dd id="traceIntent">-</dd></div>
-          <div><dt>模式</dt><dd id="traceMode">-</dd></div>
-          <div><dt>置信度</dt><dd id="traceConfidence">-</dd></div>
-          <div><dt>护栏</dt><dd id="traceGuardrail">-</dd></div>
-          <div><dt>敏感信息</dt><dd id="traceSensitive">-</dd></div>
-          <div><dt>概况完整度</dt><dd id="traceProfile">-</dd></div>
-        </dl>
+      <aside class="inspector">
+        <section class="inspector-section">
+          <div class="section-head">
+            <h2>本轮判断</h2>
+            <span>自动更新</span>
+          </div>
+          <dl class="trace">
+            <div><dt>识别事项</dt><dd id="traceIntent">待识别</dd></div>
+            <div><dt>处理方式</dt><dd id="traceMode">待运行</dd></div>
+            <div><dt>识别置信度</dt><dd id="traceConfidence">-</dd></div>
+            <div><dt>合规边界</dt><dd id="traceGuardrail">-</dd></div>
+            <div><dt>信息风险</dt><dd id="traceSensitive">-</dd></div>
+            <div><dt>资料完整度</dt><dd id="traceProfile">-</dd></div>
+          </dl>
+        </section>
 
-        <section class="review">
-          <span>自评分</span>
+        <section class="inspector-section">
+          <div class="section-head">
+            <h2>建议补充</h2>
+            <span>优先补低风险信息</span>
+          </div>
+          <div id="traceMissing" class="tag-list empty">建议补充地区、行业、经营阶段等基础信息。</div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-head">
+            <h2>回答框架</h2>
+            <span>便于检查输出完整性</span>
+          </div>
+          <div id="traceFrame" class="tag-list empty">运行后会显示本轮回答应覆盖的重点。</div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-head">
+            <h2>当前概况</h2>
+            <span>基于你填写的信息</span>
+          </div>
+          <div id="profileSummary" class="profile-summary empty">还没有填写企业概况。</div>
+        </section>
+
+        <section class="inspector-section review">
+          <div class="section-head">
+            <h2>回答检查</h2>
+            <span id="reviewMeta">尚未开始</span>
+          </div>
           <strong id="reviewScore">-</strong>
           <div id="reviewChecks" class="review-checks"></div>
         </section>
 
-        <section class="links">
-          <a href="/skill_package/START_HERE.md">查看 START_HERE</a>
-          <a href="/skill_package/universal_prompt.md">查看 Prompt</a>
-          <a href="/skill_package/platform_mapping.md">查看平台映射</a>
+        <section class="inspector-section boundary-list">
+          <div class="section-head">
+            <h2>服务边界</h2>
+            <span>公开服务型产品</span>
+          </div>
+          <ul>
+            <li>不承诺额度、利率、审批结果或放款时间</li>
+            <li>不帮助包装材料、规避审核或处理违法操作</li>
+            <li>不替代正式的法律、税务或持牌金融机构意见</li>
+          </ul>
         </section>
       </aside>
     </main>
