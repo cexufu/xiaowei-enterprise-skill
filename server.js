@@ -121,6 +121,7 @@ async function handleSkillRun(req, res) {
   const requestedModule = String(body.module || "auto");
   const activeModule = requestedModule === "auto" ? detectIntent(userText) : normalizeModule(requestedModule);
   const profile = sanitizeProfile(body.profile || {});
+  const memory = sanitizeMemory(body.memory || {});
   const guardrail = findGuardrail(userText);
   const sensitive = hasSensitiveSignal(userText);
   const trace = buildTrace({ userText, activeModule, guardrail, sensitive, profile });
@@ -139,7 +140,7 @@ async function handleSkillRun(req, res) {
   }
 
   if (!MODEL_API_KEY) {
-    const reply = `${buildRuntimeReply({ userText, activeModule, profile, sensitive })}
+    const reply = `${buildRuntimeReply({ userText, activeModule, profile, memory, sensitive })}
 
 ## 服务说明
 当前先以基础咨询模式提供服务，重点帮助你梳理事项、资料、风险和下一步动作。你可以继续补充地区、行业、经营阶段、用途或已有材料，让建议更贴近实际。`;
@@ -156,7 +157,7 @@ async function handleSkillRun(req, res) {
   }
 
   const instructions = loadSkillInstructions();
-  const prompt = buildModelPrompt({ userText, activeModule, profile, sensitive });
+  const prompt = buildModelPrompt({ userText, activeModule, profile, memory, sensitive });
 
   let upstream;
   const controller = new AbortController();
@@ -184,7 +185,7 @@ async function handleSkillRun(req, res) {
     return sendJson(res, 502, {
       error: "Model connection failed",
       detail: error.name === "AbortError"
-        ? "连接模型接口超时，请检查 Render 环境变量和外网连通性。"
+        ? "连接模型接口超时，请检查部署环境中的模型配置和外网连通性。"
         : `无法连接模型接口：${error.message}`
     });
   }
@@ -213,12 +214,13 @@ async function handleSkillRun(req, res) {
   });
 }
 
-function buildModelPrompt({ userText, activeModule, profile, sensitive }) {
+function buildModelPrompt({ userText, activeModule, profile, memory, sensitive }) {
   const moduleInfo = modules[activeModule];
   const profileText = Object.entries(profile)
     .filter(([, value]) => value)
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n") || "用户暂未填写企业概况。";
+  const memoryText = buildMemoryPrompt(memory);
 
   return `
 当前识别模块：${moduleInfo.title}
@@ -226,7 +228,16 @@ function buildModelPrompt({ userText, activeModule, profile, sensitive }) {
 企业概况：
 ${profileText}
 
+已记录的长期背景与近期沟通：
+${memoryText}
+
 ${sensitive ? "用户问题可能涉及敏感信息，请提醒不要继续提供身份证号、银行卡号、完整征信、完整流水、验证码或账户密码。" : ""}
+
+输出要求：
+- 默认把已记录的企业背景作为当前问题的出发点，不要重新要求用户重复介绍已知信息。
+- 如果关键信息仍不足，最多只追问 1 到 2 个最关键的问题。
+- 建议必须尽量贴合企业背景、主要困境、当前目标和已有资源，避免泛泛而谈。
+- 不做贷款承诺，不输出保过、秒批、包装材料等高风险表达。
 
 用户问题：
 ${userText}
@@ -247,8 +258,9 @@ function loadSkillInstructions() {
     .join("\n\n");
 }
 
-function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
-  const context = summarizeProfile(profile);
+function buildRuntimeReply({ userText, activeModule, profile, memory, sensitive }) {
+  const context = summarizeBusinessContext(profile, memory);
+  const specificFocus = buildSpecificFocus(activeModule, memory, profile, userText);
 
   const builders = {
     policy() {
@@ -269,7 +281,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 政策会随地区和时间变化，建议以官方页面和主管部门口径为准。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 告诉我所在城市和企业阶段，我可以继续给你做一张政策核验清单。`.trim();
     },
     financing() {
@@ -290,7 +305,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 以上仅用于融资准备和信息梳理，不构成贷款承诺或金融建议。具体额度、费率、审批结果和服务条款，以持牌机构审核、合同约定和官方政策为准。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 你可以继续让我生成“融资准备清单”或“贷款用途说明”。`.trim();
     },
     document() {
@@ -310,7 +328,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 以下内容应作为初稿，所有事实信息需要人工核对后再提交。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 继续告诉我你要写的是哪种材料，我可以按模板展开。`.trim();
     },
     compliance() {
@@ -330,7 +351,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 出现“保证放款、先收费、低息秒批、包装材料”等表述时，应高度谨慎。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 去掉个人信息后把原文贴出来，我可以继续逐条标注风险。`.trim();
     },
     operations() {
@@ -351,7 +375,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 这些是通用经营建议，不替代财务、税务或法律意见。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 告诉我更具体的问题，比如“库存周转慢”或“回款慢”，我再细化。`.trim();
     },
     cases() {
@@ -371,7 +398,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 不要承诺额度、利率、审批结果，不要把案例写成招商或导流文案。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 如果你给我一个具体案例方向，我可以帮你整理成对外可用表达。`.trim();
     },
     publish() {
@@ -392,7 +422,10 @@ function buildRuntimeReply({ userText, activeModule, profile, sensitive }) {
 ## 风险提醒
 避免“秒批、保过、最低息、官方指定贷款、100% 成功”等表达。
 
-## 下一步
+${specificFocus ? `## 更贴近你当前情况的关注点
+${specificFocus}
+
+` : ""}## 下一步
 我可以继续直接生成一套平台发布文案。`.trim();
     }
   };
@@ -456,6 +489,48 @@ function sanitizeProfile(profile) {
   };
 }
 
+function sanitizeMemory(memory) {
+  const core = memory.core || {};
+  const profile = memory.profile || {};
+  const interactions = Array.isArray(memory.interactions) ? memory.interactions : [];
+
+  return {
+    core: {
+      mainBusiness: safeValue(core.mainBusiness),
+      industry: safeValue(core.industry),
+      region: safeValue(core.region),
+      mainChallenges: safeValue(core.mainChallenges),
+      currentGoal: safeValue(core.currentGoal),
+      advantages: safeValue(core.advantages),
+      marketSituation: safeValue(core.marketSituation),
+      companyResources: safeValue(core.companyResources),
+      teamCharacteristics: safeValue(core.teamCharacteristics),
+      companyVision: safeValue(core.companyVision),
+      companyStrategy: safeValue(core.companyStrategy),
+      industryCompetitiveness: safeValue(core.industryCompetitiveness)
+    },
+    profile: {
+      companyHistory: safeValue(profile.companyHistory),
+      communicationStyle: safeValue(profile.communicationStyle),
+      focusArea: safeValue(profile.focusArea),
+      targetAmount: safeValue(profile.targetAmount),
+      userPreferences: safeArray(profile.userPreferences, 5)
+    },
+    interactions: interactions
+      .slice(-6)
+      .map((item) => ({
+        moduleTitle: safeValue(item.moduleTitle),
+        question: safeValue(item.question),
+        trace: safeValue(item.trace)
+      }))
+  };
+}
+
+function safeArray(values, limit = 5) {
+  if (!Array.isArray(values)) return [];
+  return values.map((value) => safeValue(value)).filter(Boolean).slice(0, limit);
+}
+
 function safeValue(value) {
   return String(value || "").replace(/\s+/g, " ").slice(0, 160);
 }
@@ -481,6 +556,90 @@ function buildTrace({ userText, activeModule, guardrail, sensitive, profile }) {
     missingLowRiskFields,
     outputFrame: modules[activeModule].outputFrame
   };
+}
+
+function buildMemoryPrompt(memory) {
+  const core = [
+    ["主营情况", memory.core.mainBusiness],
+    ["行业", memory.core.industry],
+    ["经营区域", memory.core.region],
+    ["主要困境", memory.core.mainChallenges],
+    ["当前目标", memory.core.currentGoal],
+    ["已有资源", memory.core.companyResources],
+    ["优势与竞争情况", memory.core.advantages || memory.core.industryCompetitiveness],
+    ["长期策略或愿景", memory.core.companyVision || memory.core.companyStrategy]
+  ]
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`);
+
+  const profile = [
+    ["企业历史", memory.profile.companyHistory],
+    ["沟通偏好", memory.profile.communicationStyle],
+    ["近期关注方向", memory.profile.focusArea],
+    ["用户偏好", memory.profile.userPreferences.join("；")]
+  ]
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`);
+
+  const interactions = memory.interactions
+    .map((item, index) => `近期沟通${index + 1}: ${item.moduleTitle || "咨询"} / ${item.question || item.trace}`)
+    .filter(Boolean);
+
+  return [...core, ...profile, ...interactions].join("\n") || "暂无已记录背景。";
+}
+
+function summarizeBusinessContext(profile, memory) {
+  const values = [
+    memory.core.mainBusiness,
+    memory.core.region && `经营区域：${memory.core.region}`,
+    memory.core.mainChallenges && `主要困境：${memory.core.mainChallenges}`,
+    memory.core.currentGoal && `当前目标：${memory.core.currentGoal}`,
+    profile.可提供材料 && `已有材料：${profile.可提供材料}`
+  ].filter(Boolean);
+
+  return values.length ? values.join("；") : summarizeProfile(profile);
+}
+
+function buildSpecificFocus(module, memory, profile, userText) {
+  const points = [];
+  const challenge = memory.core.mainChallenges || profile.当前困难;
+  const goal = memory.core.currentGoal || profile.资金用途;
+  const region = memory.core.region || profile.地区;
+  const resources = memory.core.companyResources || profile.可提供材料;
+
+  if (module === "policy" && region) {
+    points.push(`- 你当前有明确经营区域，建议优先核验 ${region} 当地的政务服务网、人社、工信、税务和市场监管渠道，而不是只看全国性概括。`);
+  }
+
+  if (module === "financing" && goal) {
+    points.push(`- 你当前更适合先把“${goal}”对应的资金用途、使用周期和回款来源说清楚，再决定看哪类融资路径。`);
+  }
+
+  if (module === "financing" && /回款|账期|应收/.test(challenge)) {
+    points.push("- 你提到的压力和回款相关，后续要特别重视订单、合同、发票、回款周期和应收账款的证明材料。");
+  }
+
+  if (module === "operations" && /库存|积压/.test(challenge)) {
+    points.push("- 你当前的难点与库存有关，后续梳理时要优先看周转天数、采购节奏和滞销品占比。");
+  }
+
+  if (module === "compliance" && resources) {
+    points.push(`- 你已经提到一些可提供材料，后续遇到收费或合同争议时，优先保留 ${resources} 这类真实留痕，不要额外补造材料。`);
+  }
+
+  if (resources && /document|financing/.test(module)) {
+    points.push(`- 你目前已经提到的可用资源是“${resources}”，后续可以先从这些真实材料出发，不必一开始就补齐所有资料。`);
+  }
+
+  if (!points.length && memory.core.currentGoal) {
+    points.push(`- 你当前最核心的目标是“${memory.core.currentGoal}”，后续所有动作都建议围绕这个目标排序，不要同时铺太多方向。`);
+  }
+
+  if (!points.length && /政策|融资|材料|风险|经营/.test(userText) && memory.core.mainBusiness) {
+    points.push(`- 你已经说明主营情况是“${memory.core.mainBusiness}”，后续建议会优先围绕这一业务场景展开，而不是给通用模板。`);
+  }
+
+  return points.join("\n");
 }
 
 function estimateConfidence(text, module) {
