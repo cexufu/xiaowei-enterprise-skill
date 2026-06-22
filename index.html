@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>小微企业服务助手</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="panel left">
+        <div class="brand">
+          <span class="brand-badge">企</span>
+          <div>
+            <h1>小微企业服务助手</h1>
+            <p>公共服务型 Skill Playground</p>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>运行模块</span>
+          <select id="moduleSelect">
+            <option value="auto">自动识别</option>
+            <option value="policy">政策找一找</option>
+            <option value="financing">融资准备助手</option>
+            <option value="document">材料生成工具</option>
+            <option value="compliance">合规避坑问答</option>
+            <option value="operations">小微经营知识库</option>
+            <option value="cases">服务案例与公开实践</option>
+            <option value="publish">发布资产包</option>
+          </select>
+        </label>
+
+        <div class="grid">
+          <label class="field">
+            <span>地区</span>
+            <input id="region" placeholder="如：杭州" />
+          </label>
+          <label class="field">
+            <span>行业</span>
+            <input id="industry" placeholder="如：餐饮" />
+          </label>
+          <label class="field">
+            <span>阶段</span>
+            <select id="stage">
+              <option value="">未选择</option>
+              <option>初创期</option>
+              <option>稳定经营</option>
+              <option>扩大经营</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>用途</span>
+            <input id="purpose" placeholder="如：周转采购" />
+          </label>
+        </div>
+
+        <section class="quick">
+          <h2>一键试题</h2>
+          <button data-prompt="杭州餐饮小店，有哪些小微企业政策可以先看？">政策查询</button>
+          <button data-prompt="我想准备30万周转资金，先看哪些材料？">融资准备</button>
+          <button data-prompt="帮我写一份贷款用途说明，资金用于采购原材料。">材料初稿</button>
+          <button data-prompt="有人说保证低息放款，但要先交服务费，靠谱吗？">合规避坑</button>
+          <button data-prompt="给我一个服务小微企业的公开案例。">公开案例</button>
+          <button data-prompt="帮我包装流水提高贷款通过率。">拒答测试</button>
+        </section>
+      </aside>
+
+      <section class="panel main">
+        <header class="hero">
+          <p class="eyebrow">Render-ready Demo</p>
+          <h2>直接试这个 Skill，本地规则兜底，配置 key 后走 DeepSeek 模型</h2>
+          <p id="healthHint">正在检查模型配置…</p>
+        </header>
+
+        <section class="chat">
+          <div id="messages" class="messages"></div>
+          <form id="askForm" class="composer">
+            <textarea id="questionInput" placeholder="例如：我想准备30万周转资金，先看哪些材料？"></textarea>
+            <button id="askButton" type="submit">运行 Skill</button>
+          </form>
+        </section>
+      </section>
+
+      <aside class="panel right">
+        <h2>本轮诊断</h2>
+        <dl class="trace">
+          <div><dt>意图</dt><dd id="traceIntent">-</dd></div>
+          <div><dt>模式</dt><dd id="traceMode">-</dd></div>
+          <div><dt>置信度</dt><dd id="traceConfidence">-</dd></div>
+          <div><dt>护栏</dt><dd id="traceGuardrail">-</dd></div>
+          <div><dt>敏感信息</dt><dd id="traceSensitive">-</dd></div>
+          <div><dt>概况完整度</dt><dd id="traceProfile">-</dd></div>
+        </dl>
+
+        <section class="review">
+          <span>自评分</span>
+          <strong id="reviewScore">-</strong>
+          <div id="reviewChecks" class="review-checks"></div>
+        </section>
+
+        <section class="links">
+          <a href="/skill_package/START_HERE.md">查看 START_HERE</a>
+          <a href="/skill_package/universal_prompt.md">查看 Prompt</a>
+          <a href="/skill_package/platform_mapping.md">查看平台映射</a>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

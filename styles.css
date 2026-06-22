@@ -1,0 +1,301 @@
+:root {
+  --bg: #eef1e8;
+  --ink: #1f241d;
+  --muted: #66705f;
+  --panel: rgba(255, 255, 255, 0.88);
+  --line: #dae1d0;
+  --green: #245a44;
+  --green-soft: #e8f1ea;
+  --amber: #b06b2c;
+  --red: #a43c33;
+  --shadow: 0 20px 64px rgba(32, 40, 30, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(176, 107, 44, 0.18), transparent 24rem),
+    linear-gradient(120deg, rgba(36, 90, 68, 0.14), transparent 30%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  cursor: pointer;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  gap: 14px;
+  padding: 14px;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.left,
+.right {
+  padding: 18px;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.brand-badge {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+}
+
+.brand h1,
+.brand p,
+.hero h2,
+.hero p {
+  margin: 0;
+}
+
+.brand h1 {
+  font-size: 20px;
+}
+
+.brand p,
+.hero p,
+.field span,
+.trace dt,
+.review span {
+  color: var(--muted);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.field input,
+.field select,
+.composer textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px 12px;
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus,
+.composer textarea:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 4px rgba(36, 90, 68, 0.12);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quick {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.quick h2,
+.right h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.quick button,
+.composer button {
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  padding: 10px 12px;
+}
+
+.quick button {
+  text-align: left;
+  background: #fff;
+  color: var(--green);
+}
+
+.main {
+  padding: 20px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.hero {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.eyebrow {
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h2 {
+  margin-top: 8px;
+  font-size: clamp(30px, 4vw, 56px);
+  line-height: 1.08;
+}
+
+.chat {
+  display: grid;
+  grid-template-rows: minmax(320px, 1fr) auto;
+  min-height: 0;
+}
+
+.messages {
+  padding: 18px 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  max-width: 860px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffdf8;
+  padding: 14px 16px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+
+.message h3 {
+  margin: 12px 0 6px;
+}
+
+.message h3:first-child {
+  margin-top: 0;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 10px;
+}
+
+.composer textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.trace {
+  display: grid;
+  gap: 9px;
+  margin: 0 0 16px;
+}
+
+.trace div,
+.review,
+.links {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffdf8;
+  padding: 12px;
+}
+
+.trace dd {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.review strong {
+  display: block;
+  font-size: 48px;
+  line-height: 1;
+  margin: 8px 0 12px;
+}
+
+.review-checks {
+  display: grid;
+  gap: 7px;
+}
+
+.check {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
+}
+
+.pass {
+  color: var(--green);
+}
+
+.fail {
+  color: var(--red);
+}
+
+.links {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.links a {
+  color: var(--green);
+  text-decoration: none;
+}
+
+@media (max-width: 1120px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .grid,
+  .composer {
+    grid-template-columns: 1fr;
+  }
+}

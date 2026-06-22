@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: xiaowei-enterprise-skill
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MODEL_BASE_URL
+        value: https://api.deepseek.com
+      - key: MODEL_NAME
+        value: deepseek-v4-flash
+      - key: DEEPSEEK_API_KEY
+        sync: false
