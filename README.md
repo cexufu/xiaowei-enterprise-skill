@@ -7,7 +7,7 @@
 这个仓库现在同时包含两部分：
 
 1. `skill_package/`：平台无关的 Skill 配置包，适合上传或迁移到 Coze、文心智能体、Dify、FastGPT、豆包智能体等平台。
-2. 一个最小 Web 服务：可以直接部署到 Zeabur 或 Render，用来在线试这个 Skill。
+2. 一个最小 Web 服务：可以直接部署到 Railway、Zeabur 或 Render，用来在线试这个 Skill。
 
 ## 先看哪里
 
@@ -21,9 +21,9 @@
 
 - `server.js`：最小 Node 服务，读取 Skill 包并调用模型。
 - `index.html`、`app.js`、`styles.css`：在线试用页。
-- `Dockerfile`：Zeabur 直接部署用的容器配置。
+- `Dockerfile`：Railway / Zeabur 可直接使用的容器配置。
 - `render.yaml`：Render 蓝图配置。
-- `.env.example`：本地、Zeabur 和 Render 环境变量示例。
+- `.env.example`：本地、Railway、Zeabur 和 Render 环境变量示例。
 - `universal_prompt.md`：通用系统 Prompt。
 - `workflow_spec.md`：工作流与意图识别设计。
 - `guardrails.md`：合规护栏与拒答规则。
@@ -39,6 +39,25 @@
 - 不要求用户提交身份证号、银行卡号、完整征信、完整流水。
 - 不承诺贷款成功、额度、利率、审批结果或放款时间。
 - 公开案例只是补充说明，不是主叙事。
+
+## Railway 部署
+
+这是当前更推荐的海外部署路径，因为这个仓库已经带了根目录 `Dockerfile`，Railway 官方文档说明：如果源码根目录有 `Dockerfile`，Railway 会直接使用它构建服务；同时 Railway 支持 GitHub 自动部署。
+
+成本提醒：按 Railway 当前官方定价，`Free` 计划是 `0 美元/月`，包含 `30 天试用期和 5 美元 credits`，之后是 `1 美元/月`，并且官方页面写明 `No credit card required`。这适合你先验证链路，再决定是否长期保留。
+
+创建服务时：
+
+1. 登录 Railway。
+2. 选择从 GitHub 导入这个仓库。
+3. Railway 会直接识别并使用根目录 `Dockerfile`。
+4. 在环境变量里补这三项：
+
+- `DEEPSEEK_API_KEY`
+- `MODEL_BASE_URL=https://api.deepseek.com`
+- `MODEL_NAME=deepseek-v4-flash`
+
+如果暂时不配 `DEEPSEEK_API_KEY`，页面仍然可以跑规则兜底模式，用来测试意图识别、护栏和输出结构。
 
 ## Zeabur 部署
 
