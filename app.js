@@ -1,11 +1,11 @@
-const MEMORY_KEY = "xiaowei-enterprise-memory-v3";
+const GUEST_MEMORY_KEY = "xiaowei-enterprise-guest-memory-v1";
 const MAX_INTERACTIONS = 8;
 const DEBUG_PROMPT_MODE = new URLSearchParams(window.location.search).get("debug") === "1";
 
 const onboardingFlow = [
   {
     id: "business",
-    question: "先简单说一下：你们主要做什么产品或服务？服务谁？大致属于什么行业？",
+    question: "先简单说一下：你主要做什么产品或服务？现在主要服务谁？",
     isComplete(memory) {
       return Boolean(memory.core.mainBusiness);
     },
@@ -19,7 +19,7 @@ const onboardingFlow = [
   },
   {
     id: "region",
-    question: "主要在哪些城市或区域经营？现在最核心的市场在哪里？",
+    question: "主要在哪些城市或区域经营？现阶段最核心的市场在哪里？",
     isComplete(memory) {
       return Boolean(memory.core.region);
     },
@@ -32,7 +32,7 @@ const onboardingFlow = [
   },
   {
     id: "challengeGoal",
-    question: "现阶段最现实的困难是什么？这次最想优先解决的问题又是什么？可以放在一句话里说。",
+    question: "当前最现实的困难是什么？这次最想先解决的问题又是什么？可以放在一句话里说。",
     isComplete(memory) {
       return Boolean(memory.core.mainChallenges) && Boolean(memory.core.currentGoal);
     },
@@ -44,7 +44,7 @@ const onboardingFlow = [
   },
   {
     id: "resources",
-    question: "你们现在已有的资源、材料或优势是什么？比如订单、客户、发票、设备、渠道、团队经验等。",
+    question: "你手上已经有的资源、材料或优势是什么？比如订单、客户、发票、设备、渠道或团队经验。",
     isComplete(memory) {
       return Boolean(memory.core.companyResources) && Boolean(memory.core.advantages);
     },
@@ -60,12 +60,9 @@ const onboardingFlow = [
 ];
 
 const sceneModules = {
-  policy: "policy",
-  financing: "financing",
-  document: "document",
-  compliance: "compliance",
-  operations: "operations",
-  cases: "cases"
+  direction: "auto",
+  prepare: "financing",
+  risk: "compliance"
 };
 
 const nodes = {
@@ -93,21 +90,43 @@ const nodes = {
   interactionMemory: document.querySelector("#interactionMemory"),
   resultCards: document.querySelector("#resultCards"),
   boardHint: document.querySelector("#boardHint"),
-  followupSuggestions: document.querySelector("#followupSuggestions")
-  ,
+  followupSuggestions: document.querySelector("#followupSuggestions"),
   debugPanel: document.querySelector("#debugPanel"),
   debugModule: document.querySelector("#debugModule"),
   debugMode: document.querySelector("#debugMode"),
   debugSystemPrompt: document.querySelector("#debugSystemPrompt"),
-  debugUserPrompt: document.querySelector("#debugUserPrompt")
+  debugUserPrompt: document.querySelector("#debugUserPrompt"),
+  accountStatusText: document.querySelector("#accountStatusText"),
+  accountSummary: document.querySelector("#accountSummary"),
+  accountActions: document.querySelector("#accountActions"),
+  accountChip: document.querySelector("#accountChip"),
+  authTrigger: document.querySelector("#authTrigger"),
+  logoutButton: document.querySelector("#logoutButton"),
+  authModal: document.querySelector("#authModal"),
+  authClose: document.querySelector("#authClose"),
+  authTitle: document.querySelector("#authTitle"),
+  authModeLogin: document.querySelector("#authModeLogin"),
+  authModeRegister: document.querySelector("#authModeRegister"),
+  authDisplayNameField: document.querySelector("#authDisplayNameField"),
+  authForm: document.querySelector("#authForm"),
+  authUsername: document.querySelector("#authUsername"),
+  authDisplayName: document.querySelector("#authDisplayName"),
+  authPassword: document.querySelector("#authPassword"),
+  authHint: document.querySelector("#authHint"),
+  authSubmit: document.querySelector("#authSubmit")
 };
 
 const state = {
   health: null,
-  memory: loadMemory(),
+  memory: loadGuestMemory(),
   onboardingIndex: null,
   pendingModule: "auto",
-  lastResponse: null
+  lastResponse: null,
+  authMode: "login",
+  session: {
+    authenticated: false,
+    user: null
+  }
 };
 
 init();
@@ -115,12 +134,9 @@ init();
 async function init() {
   toggleDebugPanel();
   bindEvents();
-  renderMemoryPanels();
-  renderHero();
-  renderTrace(null);
-  renderResultBoard(null);
-  await loadHealth();
-  startConversation();
+  await Promise.all([loadHealth(), loadSession()]);
+  renderAll();
+  resetConversation();
 }
 
 function bindEvents() {
@@ -131,7 +147,7 @@ function bindEvents() {
     nodes.questionInput.value = "";
 
     if (isOnboardingActive()) {
-      handleOnboardingAnswer(text);
+      await handleOnboardingAnswer(text);
       return;
     }
 
@@ -165,13 +181,93 @@ function bindEvents() {
     nodes.questionInput.focus();
     nodes.questionInput.setSelectionRange(nodes.questionInput.value.length, nodes.questionInput.value.length);
   });
+
+  nodes.authTrigger.addEventListener("click", () => {
+    openAuthModal("login");
+  });
+
+  nodes.logoutButton.addEventListener("click", async () => {
+    await logout();
+  });
+
+  nodes.authClose.addEventListener("click", closeAuthModal);
+  nodes.authModal.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-auth]")) {
+      closeAuthModal();
+    }
+  });
+
+  nodes.authModeLogin.addEventListener("click", () => setAuthMode("login"));
+  nodes.authModeRegister.addEventListener("click", () => setAuthMode("register"));
+
+  nodes.authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await submitAuth();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeAuthModal();
+    }
+  });
+}
+
+async function loadHealth() {
+  try {
+    const response = await fetch("/api/health");
+    const data = await response.json();
+    state.health = data;
+    renderHealth(data);
+  } catch {
+    renderHealth(null);
+  }
+}
+
+async function loadSession() {
+  try {
+    const response = await fetch("/api/session");
+    const data = await response.json();
+    if (response.ok && data.authenticated) {
+      state.session.authenticated = true;
+      state.session.user = data.user;
+      state.memory = mergeMemory(createDefaultMemory(), data.memory || {});
+      clearGuestMemory();
+      return;
+    }
+  } catch {
+    // ignore and keep guest state
+  }
+
+  state.session.authenticated = false;
+  state.session.user = null;
+  state.memory = loadGuestMemory();
+}
+
+function renderAll() {
+  renderAuthState();
+  renderMemoryPanels();
+  renderHero();
+  renderTrace(null);
+  renderResultBoard(null);
+  renderDebugPrompt(null);
+}
+
+function resetConversation() {
+  state.lastResponse = null;
+  nodes.messages.innerHTML = "";
+  renderTrace(null);
+  renderResultBoard(null);
+  renderDebugPrompt(null);
+  startConversation();
 }
 
 function startConversation() {
   if (needsOnboarding()) {
     addMessage(
       "assistant",
-      "你好。先用 4 个问题建立企业档案，后面我会默认带入，不用你反复重讲。"
+      state.session.authenticated
+        ? "欢迎回来。我先补齐 4 个关键信息，后面的建议会直接结合你的企业情况。"
+        : "你可以先试着和我聊。我先了解 4 件事，后面的建议会更贴着你的企业。"
     );
     ensureOnboarding(false);
     return;
@@ -179,7 +275,9 @@ function startConversation() {
 
   addMessage(
     "assistant",
-    "你好，企业档案已就绪。现在可以直接提问题。"
+    state.session.authenticated
+      ? `欢迎回来，${state.session.user.displayName || state.session.user.username}。我先记住了你的企业情况，今天最想先解决哪一件事？`
+      : "你可以直接说问题。如果你想长期保存企业档案和最近咨询，登录后我会接着记住。"
   );
 }
 
@@ -201,7 +299,7 @@ function ensureOnboarding(forcePrompt) {
   renderResultBoard(state.lastResponse);
 
   if (forcePrompt) {
-    addMessage("assistant", "先把企业档案补齐，后面的建议会更准。");
+    addMessage("assistant", "先把这 4 个关键信息补齐，后面的建议才会真正贴着你。");
   }
 
   askCurrentOnboardingQuestion();
@@ -215,7 +313,7 @@ function askCurrentOnboardingQuestion() {
   nodes.askButton.textContent = "记录并继续";
 }
 
-function handleOnboardingAnswer(answer) {
+async function handleOnboardingAnswer(answer) {
   const step = onboardingFlow[state.onboardingIndex];
   if (!step) return;
 
@@ -229,7 +327,7 @@ function handleOnboardingAnswer(answer) {
   const nextIndex = nextOnboardingIndex();
   if (nextIndex !== null) {
     state.onboardingIndex = nextIndex;
-    addMessage("assistant", "记下了，继续。");
+    addMessage("assistant", "我记下了，继续。");
     askCurrentOnboardingQuestion();
     return;
   }
@@ -242,84 +340,185 @@ function handleOnboardingAnswer(answer) {
   renderHero();
   renderResultBoard(state.lastResponse);
   nodes.composerTip.textContent = "企业档案已建立。";
-  nodes.askButton.textContent = "发送";
+  nodes.askButton.textContent = "获取建议";
 
   addMessage(
     "assistant",
-    "基础情况已记录。接下来直接说问题就行。"
+    "我们正在阅读你的设想。我先记住了这些情况，接下来直接告诉我，今天最想先解决哪一件事。"
   );
 }
 
 function restartOnboarding() {
-  state.memory.core.mainBusiness = "";
-  state.memory.core.industry = "";
-  state.memory.core.region = "";
-  state.memory.core.mainChallenges = "";
-  state.memory.core.currentGoal = "";
-  state.memory.core.advantages = "";
-  state.memory.core.marketSituation = "";
-  state.memory.core.companyResources = "";
-  state.memory.core.teamCharacteristics = "";
-  state.memory.core.industryCompetitiveness = "";
+  state.memory = createDefaultMemory();
   state.onboardingIndex = 0;
-  state.memory.meta.intakeComplete = false;
   persistMemory();
-  renderMemoryPanels();
-  renderHero();
-  renderResultBoard(state.lastResponse);
-  addMessage("assistant", "我们重新建一遍档案，只说必要信息就行。");
-  askCurrentOnboardingQuestion();
-}
-
-async function loadHealth() {
-  try {
-    const response = await fetch("/api/health");
-    const data = await response.json();
-    state.health = data;
-    renderHealth(data);
-  } catch {
-    renderHealth(null);
-  }
+  renderAll();
+  resetConversation();
 }
 
 function renderHealth(data) {
   if (!data) {
-    nodes.statusBadge.textContent = "离线可用";
+    nodes.statusBadge.textContent = "本地可用";
     nodes.statusBadge.className = "status-badge muted";
-    nodes.healthHint.textContent = "先建档，再提问。";
+    nodes.healthHint.textContent = "当前处于本地测试模式。";
     return;
   }
 
   nodes.statusBadge.textContent = data.hasApiKey ? "服务已就绪" : "基础模式";
   nodes.statusBadge.className = "status-badge live";
-  nodes.healthHint.textContent = needsOnboarding()
-    ? "先完成建档，结果会更准。"
-    : "企业档案已就绪。";
+
+  if (needsOnboarding()) {
+    nodes.healthHint.textContent = state.session.authenticated
+      ? "已登录，补齐档案后建议会更贴着你。"
+      : "可以先试聊；登录后我会长期保存企业档案。";
+    return;
+  }
+
+  nodes.healthHint.textContent = state.session.authenticated
+    ? "当前账号下的企业档案与最近咨询会继续保留。"
+    : "当前为临时会话，登录后可继续保存。";
 }
 
 function renderHero() {
   renderHealth(state.health);
+  nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
 
   if (needsOnboarding() || isOnboardingActive()) {
-    nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
     nodes.composerTip.textContent = isOnboardingActive()
       ? `建档中 ${state.onboardingIndex + 1}/${onboardingFlow.length}`
-      : "先建档，后面会更准。";
+      : "先把企业档案补齐。";
     nodes.askButton.textContent = isOnboardingActive() ? "记录并继续" : "继续";
     return;
   }
 
-  nodes.heroTitle.textContent = "小微助手-更懂你的小专家";
-  nodes.composerTip.textContent = "直接说重点。";
-  nodes.askButton.textContent = "发送";
+  nodes.composerTip.textContent = "直接说重点，我会先结合你的企业情况来判断。";
+  nodes.askButton.textContent = "获取建议";
+}
+
+function renderAuthState() {
+  if (state.session.authenticated) {
+    const displayName = state.session.user.displayName || state.session.user.username;
+    nodes.accountStatusText.textContent = `${displayName} 已登录`;
+    nodes.accountSummary.textContent = "企业档案、偏好和最近咨询会保存到当前账号。";
+    nodes.accountActions.classList.remove("hidden");
+    nodes.authTrigger.textContent = "切换账号";
+    nodes.accountChip.textContent = `已保存 · ${displayName}`;
+    nodes.accountChip.className = "account-chip live";
+    return;
+  }
+
+  nodes.accountStatusText.textContent = "当前为临时会话";
+  nodes.accountSummary.textContent = "登录后会保存企业档案和最近咨询，下次回来我能接着理解。";
+  nodes.accountActions.classList.add("hidden");
+  nodes.authTrigger.textContent = "登录保存";
+  nodes.accountChip.textContent = "临时会话";
+  nodes.accountChip.className = "account-chip guest";
+}
+
+function openAuthModal(mode = "login") {
+  setAuthMode(mode);
+  nodes.authModal.classList.remove("hidden");
+  nodes.authUsername.focus();
+}
+
+function closeAuthModal() {
+  nodes.authModal.classList.add("hidden");
+  nodes.authHint.textContent = state.authMode === "login"
+    ? "登录后，我会把企业档案和最近咨询绑定到当前账号。"
+    : "注册后会立刻保存你当前的企业档案。";
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const isRegister = mode === "register";
+  nodes.authModeLogin.classList.toggle("active", !isRegister);
+  nodes.authModeRegister.classList.toggle("active", isRegister);
+  nodes.authDisplayNameField.classList.toggle("hidden", !isRegister);
+  nodes.authTitle.textContent = isRegister
+    ? "先建一个账号，把当前企业档案保存下来。"
+    : "登录后，我会继续记住你的企业情况。";
+  nodes.authSubmit.textContent = isRegister ? "注册并保存" : "登录并保存";
+  nodes.authHint.textContent = isRegister
+    ? "注册完成后，当前档案会直接绑定到这个账号。"
+    : "登录后，我会把企业档案和最近咨询绑定到当前账号。";
+}
+
+async function submitAuth() {
+  const username = nodes.authUsername.value.trim();
+  const displayName = nodes.authDisplayName.value.trim();
+  const password = nodes.authPassword.value;
+  const endpoint = state.authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+
+  if (!username || !password) {
+    nodes.authHint.textContent = "请输入账号和密码。";
+    return;
+  }
+
+  nodes.authSubmit.disabled = true;
+  nodes.authHint.textContent = "正在保存当前档案…";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        password,
+        displayName,
+        memory: state.memory
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      nodes.authHint.textContent = data.error || data.detail || "当前无法完成登录，请稍后再试。";
+      return;
+    }
+
+    state.session.authenticated = true;
+    state.session.user = data.user;
+    state.memory = mergeMemory(createDefaultMemory(), data.memory || {});
+    clearGuestMemory();
+    renderAll();
+    closeAuthModal();
+    nodes.authUsername.value = "";
+    nodes.authDisplayName.value = "";
+    nodes.authPassword.value = "";
+    addMessage(
+      "assistant",
+      `已保存到当前账号。后面我会直接带着这份企业档案继续判断，你现在可以继续说最想先解决的问题。`
+    );
+  } catch (error) {
+    nodes.authHint.textContent = `当前无法完成登录：${error.message}`;
+  } finally {
+    nodes.authSubmit.disabled = false;
+  }
+}
+
+async function logout() {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // ignore
+  }
+
+  state.session.authenticated = false;
+  state.session.user = null;
+  state.memory = createDefaultMemory();
+  state.onboardingIndex = null;
+  clearGuestMemory();
+  closeAuthModal();
+  renderAll();
+  resetConversation();
 }
 
 async function runSkill(question, module = "auto") {
   addMessage("user", question);
   setLoading(true);
-  const loading = addMessage("assistant", "正在整理，请稍等。");
+  const loading = addMessage("assistant", "我先整理一下，请稍等。");
 
   applyConversationHeuristics(question, state.memory);
+  persistMemory();
 
   try {
     const response = await fetch("/api/skill-run", {
@@ -364,7 +563,7 @@ function renderTrace(data) {
     nodes.traceIntent.textContent = "待开始";
     nodes.traceMode.textContent = "待开始";
     nodes.traceGuardrail.textContent = "-";
-    nodes.traceSensitive.textContent = "-";
+    nodes.traceSensitive.textContent = state.session.authenticated ? "已登录保存" : "临时会话";
     nodes.traceProfile.textContent = needsOnboarding() ? `${getOnboardingCompletionCount()}/${onboardingFlow.length}` : "-";
     if (tips.length) {
       nodes.traceMissing.className = "tag-list";
@@ -379,8 +578,9 @@ function renderTrace(data) {
   nodes.traceIntent.textContent = data.trace?.intentTitle || data.moduleTitle || "待识别";
   nodes.traceMode.textContent = modeLabel(data.mode);
   nodes.traceGuardrail.textContent = data.trace?.guardrail || "-";
-  nodes.traceSensitive.textContent = data.trace?.sensitive || "-";
+  nodes.traceSensitive.textContent = data.trace?.session || "-";
   nodes.traceProfile.textContent = data.trace?.profileCompleteness || "-";
+
   if (data.trace?.missingLowRiskFields?.length) {
     nodes.traceMissing.className = "tag-list";
     nodes.traceMissing.innerHTML = renderTags(data.trace.missingLowRiskFields);
@@ -408,7 +608,7 @@ function renderMemorySummary() {
 
   if (!summaryItems.length) {
     nodes.memorySummary.className = "memory-summary empty";
-    nodes.memorySummary.textContent = "先回答 4 个问题。";
+    nodes.memorySummary.textContent = "回答 4 个问题后，我会默认带着这些信息继续理解你。";
     nodes.memoryStatus.textContent = "先建立档案";
     return;
   }
@@ -417,9 +617,7 @@ function renderMemorySummary() {
   nodes.memorySummary.innerHTML = summaryItems
     .map(([label, value]) => `<div class="memory-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
     .join("");
-  nodes.memoryStatus.textContent = state.memory.meta.intakeComplete
-    ? "已建立"
-    : "继续补充";
+  nodes.memoryStatus.textContent = state.memory.meta.intakeComplete ? "已建立" : "继续补充";
 }
 
 function renderMemoryProgress() {
@@ -457,7 +655,9 @@ function renderProfileMemory() {
 function renderInteractionMemory() {
   const items = (state.memory.interactions || []).slice(-3).reverse();
   if (!items.length) {
-    nodes.interactionMemory.textContent = "还没有记录。";
+    nodes.interactionMemory.textContent = state.session.authenticated
+      ? "还没有保存的咨询记录。"
+      : "登录后会把最近咨询也记下来。";
     nodes.interactionMemory.className = "history-list empty";
     return;
   }
@@ -473,13 +673,13 @@ function renderInteractionMemory() {
 function renderResultBoard(data) {
   if (!data) {
     nodes.boardHint.textContent = needsOnboarding()
-      ? "先建档，再提问。"
+      ? "先补齐企业档案，再开始正式判断。"
       : "结果会在这里整理。";
     nodes.resultCards.className = "result-cards empty";
     nodes.resultCards.innerHTML = `
       <article class="empty-card">
         <strong>还没有结果</strong>
-        <p>提一个具体问题，这里会自动整理。</p>
+        <p>提一个具体问题，我会按判断、准备、风险和下一步来整理。</p>
       </article>
     `;
     renderFollowupSuggestions(null, []);
@@ -588,9 +788,7 @@ function buildFollowupSuggestions(data, sections) {
   }[data.module] || [];
 
   prompts.push(...modulePrompts);
-
-  const missingPrompts = buildMissingFieldPrompts(data.trace?.missingLowRiskFields || []);
-  prompts.push(...missingPrompts);
+  prompts.push(...buildMissingFieldPrompts(data.trace?.missingLowRiskFields || []));
 
   return dedupeSuggestions(prompts).slice(0, 4);
 }
@@ -600,7 +798,7 @@ function buildMissingFieldPrompts(fields = buildMissingFieldTips()) {
     地区: { label: "补充经营地区", prompt: "补充一下我们的经营地区、核心市场和主要客户分布：" },
     行业: { label: "补充主营与行业", prompt: "补充一下我们的主营业务、行业和客户类型：" },
     经营阶段: { label: "补充经营阶段", prompt: "补充一下我们的经营年限、团队情况和发展阶段：" },
-    资金用途: { label: "补充资金用途", prompt: "补充一下这次资金或事项的具体用途、周期和目标：" }
+    资金用途: { label: "补充当前目标", prompt: "补充一下这次最想解决的问题、用途和优先目标：" }
   };
 
   return fields
@@ -633,20 +831,16 @@ function buildProfileFromMemory(memory) {
 
 function buildSceneDraft(scene, memory) {
   const context = {
-    business: memory.core.mainBusiness || "我们企业的实际情况",
+    business: memory.core.mainBusiness || "我们的企业情况",
     region: memory.core.region || "所在地区",
     challenge: memory.core.mainChallenges || "当前经营压力",
-    goal: memory.core.currentGoal || "当前最想解决的问题",
-    resources: memory.core.companyResources || "已有材料和资源"
+    goal: memory.core.currentGoal || "当前最想解决的问题"
   };
 
   const drafts = {
-    policy: `结合我们目前的情况：${context.business}，主要在${context.region}经营。想围绕“${context.goal}”先做政策方向和官方核验，应该从哪些入口开始？`,
-    financing: `结合我们目前的情况：${context.business}。当前最大的压力是“${context.challenge}”，想围绕“${context.goal}”做融资准备，应该先整理哪些真实材料和风险点？`,
-    document: `请结合我们的情况：${context.business}，当前想解决“${context.goal}”。先帮我起草一份基础说明材料，并标出待确认字段。`,
-    compliance: `结合我们当前准备处理的问题“${context.goal}”，如果遇到收费、合同、宣传话术或材料要求，哪些表述最值得警惕？`,
-    operations: `我们目前的经营情况是：${context.business}。现在最大的困难是“${context.challenge}”，如果先做经营梳理，应该从哪些动作开始排查？`,
-    cases: `请基于“${context.goal}”这个方向，给我一个服务小微企业的案例写法，重点写背景、服务动作、可借鉴点和边界。`
+    direction: `请先结合我们的情况判断方向：${context.business}，主要在${context.region}经营。现在最大的现实问题是“${context.challenge}”，我应该先从政策核验、经营梳理还是融资准备入手？`,
+    prepare: `请结合我们的情况帮我先做准备：${context.business}。当前最想解决的是“${context.goal}”，应该先整理哪些真实材料、说明和路径？`,
+    risk: `如果围绕“${context.goal}”继续推进，哪些收费、合同、授权和宣传话术最值得我先防？`
   };
 
   return drafts[scene] || "";
@@ -756,9 +950,9 @@ function isOnboardingActive() {
 }
 
 function modeLabel(mode) {
-  if (mode === "model") return "结合企业背景整理";
-  if (mode === "runtime-fallback") return "基础咨询模式";
-  if (mode === "guardrail") return "风险保护提示";
+  if (mode === "model") return "深度整理";
+  if (mode === "runtime-fallback") return "基础模式";
+  if (mode === "guardrail") return "风险保护";
   return mode || "-";
 }
 
@@ -889,10 +1083,8 @@ function parseTable(rows) {
 
   if (parsedRows.length < 2) return "";
 
-  const dividerIndex = rows.findIndex((row) => isTableDivider(row));
   const headerCells = parsedRows[0];
-  const bodyRows = dividerIndex === 1 ? parsedRows.slice(1) : parsedRows.slice(1);
-
+  const bodyRows = parsedRows.slice(1);
   const body = bodyRows
     .filter((cells) => !cells.every((cell) => /^:?-{3,}:?$/.test(cell)))
     .map((cells) => `<tr>${cells.map((cell) => `<td>${formatInline(cell)}</td>`).join("")}</tr>`)
@@ -1044,9 +1236,9 @@ function createDefaultMemory() {
   };
 }
 
-function loadMemory() {
+function loadGuestMemory() {
   try {
-    const raw = localStorage.getItem(MEMORY_KEY);
+    const raw = localStorage.getItem(GUEST_MEMORY_KEY);
     if (!raw) return createDefaultMemory();
     return mergeMemory(createDefaultMemory(), JSON.parse(raw));
   } catch {
@@ -1054,8 +1246,40 @@ function loadMemory() {
   }
 }
 
+function clearGuestMemory() {
+  localStorage.removeItem(GUEST_MEMORY_KEY);
+}
+
 function persistMemory() {
-  localStorage.setItem(MEMORY_KEY, JSON.stringify(state.memory));
+  state.memory.meta.updatedAt = new Date().toISOString();
+  if (state.session.authenticated) {
+    clearGuestMemory();
+    void saveAccountMemory();
+    return;
+  }
+  localStorage.setItem(GUEST_MEMORY_KEY, JSON.stringify(state.memory));
+}
+
+async function saveAccountMemory() {
+  try {
+    const response = await fetch("/api/account/memory", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        memory: state.memory,
+        replace: true
+      })
+    });
+
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.memory) {
+      state.memory = mergeMemory(createDefaultMemory(), data.memory);
+      renderMemoryPanels();
+    }
+  } catch {
+    // ignore in local-first testing
+  }
 }
 
 function mergeMemory(base, patch) {

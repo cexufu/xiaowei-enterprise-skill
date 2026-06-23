@@ -3,19 +3,37 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>小微企业服务助手</title>
+    <title>小微助手</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-badge">企</span>
+          <span class="brand-badge">微</span>
           <div>
-            <h1>小微企业服务助手</h1>
-            <p>政策 · 融资准备 · 风险判断</p>
+            <h1>小微助手</h1>
+            <p>从帮你到懂你，你的企业经营小助手</p>
           </div>
         </div>
+
+        <section class="sidebar-section account-panel">
+          <div class="section-head">
+            <div>
+              <h2>账号与保存</h2>
+              <span id="accountStatusText">当前为临时会话</span>
+            </div>
+            <button id="authTrigger" class="ghost-button" type="button">登录保存</button>
+          </div>
+
+          <div id="accountSummary" class="account-summary">
+            登录后会保存企业档案和最近咨询，下次回来我能接着理解。
+          </div>
+
+          <div id="accountActions" class="inline-actions hidden">
+            <button id="logoutButton" class="ghost-button subtle" type="button">退出当前账号</button>
+          </div>
+        </section>
 
         <section class="sidebar-section dossier-card">
           <div class="section-head">
@@ -34,44 +52,41 @@
           </div>
 
           <div id="memorySummary" class="memory-summary empty">
-            回答 4 个问题后，后面的建议会更准。
+            回答 4 个问题后，我会默认带着这些信息继续理解你。
+          </div>
+
+          <div class="memory-stack">
+            <h3>基础档案</h3>
+            <div id="coreMemory" class="tag-list empty">还没有记录。</div>
+          </div>
+
+          <div class="memory-stack">
+            <h3>偏好与补充</h3>
+            <div id="profileMemory" class="tag-list empty">还没有记录。</div>
           </div>
         </section>
 
         <section class="sidebar-section quick">
           <div class="section-head">
             <div>
-              <h2>常用场景</h2>
+              <h2>你可以先这样问</h2>
+              <span>外面只保留 3 个入口，内部我会自动细分</span>
             </div>
           </div>
 
-          <div class="quick-grid">
-            <button data-scene="policy" type="button"><strong>政策</strong></button>
-            <button data-scene="financing" type="button"><strong>融资</strong></button>
-            <button data-scene="document" type="button"><strong>材料</strong></button>
-            <button data-scene="compliance" type="button"><strong>风险</strong></button>
-            <button data-scene="operations" type="button"><strong>经营</strong></button>
-            <button data-scene="cases" type="button"><strong>案例</strong></button>
-          </div>
-        </section>
-
-        <section class="sidebar-section memory-groups">
-          <div class="memory-group">
-            <div class="section-head compact">
-              <div>
-                <h2>核心信息</h2>
-              </div>
-            </div>
-            <div id="coreMemory" class="tag-list empty">还没有记录。</div>
-          </div>
-
-          <div class="memory-group">
-            <div class="section-head compact">
-              <div>
-                <h2>偏好与补充</h2>
-              </div>
-            </div>
-            <div id="profileMemory" class="tag-list empty">还没有记录。</div>
+          <div class="quick-grid compact">
+            <button data-scene="direction" type="button">
+              <strong>看方向</strong>
+              <span>先判断从哪开始</span>
+            </button>
+            <button data-scene="prepare" type="button">
+              <strong>做准备</strong>
+              <span>融资、材料、说明</span>
+            </button>
+            <button data-scene="risk" type="button">
+              <strong>避风险</strong>
+              <span>看收费、条款和授权</span>
+            </button>
           </div>
         </section>
 
@@ -81,7 +96,7 @@
               <h2>最近咨询</h2>
             </div>
           </div>
-          <div id="interactionMemory" class="history-list empty">还没有记录。</div>
+          <div id="interactionMemory" class="history-list empty">登录后会把最近咨询也记下来。</div>
         </section>
 
         <p class="privacy-note">
@@ -96,13 +111,16 @@
             <h2 id="heroTitle">小微助手-更懂你的小专家</h2>
             <p id="healthHint">正在读取服务状态…</p>
           </div>
+          <div class="hero-meta">
+            <span id="accountChip" class="account-chip guest">临时会话</span>
+          </div>
         </header>
 
         <section class="chat-shell">
           <div class="chat-head">
             <div>
-              <h2>继续提问</h2>
-              <p>直接说重点就行。</p>
+              <h2>先说你的问题</h2>
+              <p>我会先结合企业情况来判断，不会只给泛化答案。</p>
             </div>
           </div>
 
@@ -115,8 +133,8 @@
               placeholder="直接输入问题，例如：最近回款变慢，想先把融资准备做扎实。"
             ></textarea>
             <div class="composer-actions">
-              <p id="composerTip" class="composer-tip">支持结合企业档案继续分析。</p>
-              <button id="askButton" type="submit">发送</button>
+              <p id="composerTip" class="composer-tip">我会把企业档案一起带入判断。</p>
+              <button id="askButton" type="submit">获取建议</button>
             </div>
           </form>
         </section>
@@ -124,30 +142,30 @@
         <section class="result-board">
           <div class="board-head">
             <div>
-              <h2>当前结果</h2>
+              <h2>整理结果</h2>
               <p id="boardHint">结果会在这里整理。</p>
             </div>
           </div>
 
           <div class="trace-strip">
             <div class="trace-pill">
-              <span>事项</span>
+              <span>当前事项</span>
               <strong id="traceIntent">待开始</strong>
             </div>
             <div class="trace-pill">
-              <span>方式</span>
+              <span>整理方式</span>
               <strong id="traceMode">待开始</strong>
             </div>
             <div class="trace-pill">
-              <span>风险</span>
+              <span>风险状态</span>
               <strong id="traceGuardrail">-</strong>
             </div>
             <div class="trace-pill">
-              <span>提醒</span>
+              <span>会话状态</span>
               <strong id="traceSensitive">-</strong>
             </div>
             <div class="trace-pill">
-              <span>完整度</span>
+              <span>资料完整度</span>
               <strong id="traceProfile">-</strong>
             </div>
           </div>
@@ -155,14 +173,14 @@
           <div id="resultCards" class="result-cards empty">
             <article class="empty-card">
               <strong>还没有结果</strong>
-              <p>提一个具体问题，这里会自动整理。</p>
+              <p>提一个具体问题，我会按判断、准备、风险和下一步来整理。</p>
             </article>
           </div>
 
           <div class="board-footer">
             <section class="board-side">
-              <h3>待补充</h3>
-              <div id="traceMissing" class="tag-list empty">补充地区、行业、困境和目标。</div>
+              <h3>还缺什么</h3>
+              <div id="traceMissing" class="tag-list empty">补充地区、行业、经营阶段和当前目标。</div>
             </section>
 
             <section class="board-side">
@@ -205,6 +223,48 @@
         </section>
       </section>
     </main>
+
+    <div id="authModal" class="modal hidden">
+      <div class="modal-backdrop" data-close-auth></div>
+      <section class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h2>账号与保存</h2>
+            <p id="authTitle">登录后，我会继续记住你的企业情况。</p>
+          </div>
+          <button id="authClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <div class="auth-switch" role="tablist" aria-label="登录或注册">
+          <button id="authModeLogin" class="auth-tab active" type="button">登录</button>
+          <button id="authModeRegister" class="auth-tab" type="button">注册</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <label class="field">
+            <span>账号</span>
+            <input id="authUsername" type="text" autocomplete="username" placeholder="输入账号名" />
+          </label>
+
+          <label id="authDisplayNameField" class="field hidden">
+            <span>显示名称</span>
+            <input id="authDisplayName" type="text" autocomplete="nickname" placeholder="例如：张三的小店" />
+          </label>
+
+          <label class="field">
+            <span>密码</span>
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" />
+          </label>
+
+          <p id="authHint" class="auth-hint">登录后，我会把企业档案和最近咨询绑定到当前账号。</p>
+
+          <div class="modal-actions">
+            <button class="ghost-button" type="button" data-close-auth>稍后再说</button>
+            <button id="authSubmit" type="submit">登录并保存</button>
+          </div>
+        </form>
+      </section>
+    </div>
 
     <script src="/app.js" type="module"></script>
   </body>

@@ -1,5 +1,6 @@
-import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,11 @@ const PORT = Number(process.env.PORT || 10000);
 const MODEL_BASE_URL = (process.env.MODEL_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
 const MODEL_NAME = process.env.MODEL_NAME || "deepseek-v4-flash";
 const MODEL_API_KEY = process.env.DEEPSEEK_API_KEY || "";
+const DEFAULT_MEMORY_VERSION = 4;
+const SESSION_COOKIE_NAME = "xiaowei_session";
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const DATA_DIR = path.join(__dirname, "runtime_data");
+const STORE_FILE = path.join(DATA_DIR, "app-store.json");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -76,17 +82,44 @@ const sensitivePatterns = [
   /\b\d{17}[\dXx]\b/
 ];
 
+ensureStoreFile();
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
     if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/api/health") {
-      return sendJson(res, 200, {
-        ok: true,
-        modelName: MODEL_NAME,
-        modelBaseUrl: MODEL_BASE_URL,
-        hasApiKey: Boolean(MODEL_API_KEY)
-      }, req.method === "HEAD");
+      return sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          modelName: MODEL_NAME,
+          modelBaseUrl: MODEL_BASE_URL,
+          hasApiKey: Boolean(MODEL_API_KEY)
+        },
+        req.method === "HEAD"
+      );
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/session") {
+      return handleSession(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/register") {
+      return handleRegister(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/login") {
+      return handleLogin(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+      return handleLogout(req, res);
+    }
+
+    if (req.method === "PUT" && url.pathname === "/api/account/memory") {
+      return handleMemoryUpdate(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/api/skill-run") {
@@ -110,6 +143,145 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`API key loaded: ${MODEL_API_KEY ? "yes" : "no"}`);
 });
 
+async function handleSession(req, res) {
+  const session = getSessionContext(req);
+  if (!session.user) {
+    return sendJson(res, 200, { authenticated: false });
+  }
+
+  return sendJson(res, 200, {
+    authenticated: true,
+    user: presentUser(session.user),
+    memory: normalizeStoredMemory(session.user.memory)
+  });
+}
+
+async function handleRegister(req, res) {
+  const body = await readJson(req);
+  const username = normalizeUsername(body.username);
+  const password = String(body.password || "");
+  const displayName = normalizeDisplayName(body.displayName || username);
+
+  if (!username) {
+    return sendJson(res, 400, { error: "账号不能为空，且不能包含空格。" });
+  }
+
+  if (password.length < 6) {
+    return sendJson(res, 400, { error: "密码至少需要 6 位。" });
+  }
+
+  const store = readStore();
+  if (findUserByUsername(store, username)) {
+    return sendJson(res, 409, { error: "这个账号已经存在，请直接登录。" });
+  }
+
+  const now = new Date().toISOString();
+  const { salt, hash } = createPasswordHash(password);
+  const guestMemory = body.memory ? sanitizeMemory(body.memory) : createDefaultMemory();
+  const user = {
+    id: crypto.randomUUID(),
+    username,
+    usernameKey: username.toLowerCase(),
+    displayName,
+    passwordSalt: salt,
+    passwordHash: hash,
+    createdAt: now,
+    updatedAt: now,
+    memory: normalizeStoredMemory(guestMemory)
+  };
+
+  store.users.push(user);
+  const sessionId = createSession(store, user.id);
+  writeStore(store);
+
+  return sendJson(
+    res,
+    200,
+    {
+      authenticated: true,
+      user: presentUser(user),
+      memory: normalizeStoredMemory(user.memory)
+    },
+    false,
+    { "Set-Cookie": buildSessionCookie(req, sessionId) }
+  );
+}
+
+async function handleLogin(req, res) {
+  const body = await readJson(req);
+  const username = normalizeUsername(body.username);
+  const password = String(body.password || "");
+
+  if (!username || !password) {
+    return sendJson(res, 400, { error: "请输入账号和密码。" });
+  }
+
+  const store = readStore();
+  const user = findUserByUsername(store, username);
+  if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+    return sendJson(res, 401, { error: "账号或密码不正确。" });
+  }
+
+  if (body.memory) {
+    user.memory = mergeAccountMemory(user.memory, body.memory);
+    user.updatedAt = new Date().toISOString();
+  }
+
+  const sessionId = createSession(store, user.id);
+  writeStore(store);
+
+  return sendJson(
+    res,
+    200,
+    {
+      authenticated: true,
+      user: presentUser(user),
+      memory: normalizeStoredMemory(user.memory)
+    },
+    false,
+    { "Set-Cookie": buildSessionCookie(req, sessionId) }
+  );
+}
+
+async function handleLogout(req, res) {
+  const session = getSessionContext(req);
+  if (session.sessionId) {
+    session.store.sessions = session.store.sessions.filter((item) => item.id !== session.sessionId);
+    writeStore(session.store);
+  }
+
+  return sendJson(
+    res,
+    200,
+    { ok: true },
+    false,
+    { "Set-Cookie": buildClearSessionCookie(req) }
+  );
+}
+
+async function handleMemoryUpdate(req, res) {
+  const session = getSessionContext(req);
+  if (!session.user) {
+    return sendJson(res, 401, { error: "请先登录后再保存企业档案。" });
+  }
+
+  const body = await readJson(req);
+  const replace = Boolean(body.replace);
+  const incomingMemory = body.memory || {};
+  const nextMemory = replace
+    ? normalizeStoredMemory(incomingMemory)
+    : mergeAccountMemory(session.user.memory, incomingMemory);
+
+  session.user.memory = nextMemory;
+  session.user.updatedAt = new Date().toISOString();
+  writeStore(session.store);
+
+  return sendJson(res, 200, {
+    ok: true,
+    memory: normalizeStoredMemory(nextMemory)
+  });
+}
+
 async function handleSkillRun(req, res) {
   const body = await readJson(req);
   const userText = String(body.message || "").trim();
@@ -122,10 +294,21 @@ async function handleSkillRun(req, res) {
   const requestedModule = String(body.module || "auto");
   const activeModule = requestedModule === "auto" ? detectIntent(userText) : normalizeModule(requestedModule);
   const profile = sanitizeProfile(body.profile || {});
-  const memory = sanitizeMemory(body.memory || {});
+  const session = getSessionContext(req);
+  const inputMemory = sanitizeMemory(body.memory || {});
+  const memory = session.user
+    ? mergeAccountMemory(session.user.memory, inputMemory)
+    : normalizeStoredMemory(inputMemory);
   const guardrail = findGuardrail(userText);
   const sensitive = hasSensitiveSignal(userText);
-  const trace = buildTrace({ userText, activeModule, guardrail, sensitive, profile });
+  const trace = buildTrace({
+    userText,
+    activeModule,
+    guardrail,
+    sensitive,
+    profile,
+    authenticated: Boolean(session.user)
+  });
   const instructions = loadSkillInstructions();
   const prompt = buildModelPrompt({ userText, activeModule, profile, memory, sensitive });
   const debug = debugPrompt
@@ -636,8 +819,10 @@ function sanitizeMemory(memory) {
   const core = memory.core || {};
   const profile = memory.profile || {};
   const interactions = Array.isArray(memory.interactions) ? memory.interactions : [];
+  const meta = memory.meta || {};
 
   return {
+    version: DEFAULT_MEMORY_VERSION,
     core: {
       mainBusiness: safeValue(core.mainBusiness),
       industry: safeValue(core.industry),
@@ -660,12 +845,18 @@ function sanitizeMemory(memory) {
       userPreferences: safeArray(profile.userPreferences, 5)
     },
     interactions: interactions
-      .slice(-6)
+      .slice(-8)
       .map((item) => ({
+        at: safeValue(item.at, 40),
+        module: safeValue(item.module, 24),
         moduleTitle: safeValue(item.moduleTitle),
         question: safeValue(item.question),
         trace: safeValue(item.trace)
-      }))
+      })),
+    meta: {
+      intakeComplete: Boolean(meta.intakeComplete),
+      updatedAt: safeValue(meta.updatedAt, 40)
+    }
   };
 }
 
@@ -674,8 +865,8 @@ function safeArray(values, limit = 5) {
   return values.map((value) => safeValue(value)).filter(Boolean).slice(0, limit);
 }
 
-function safeValue(value) {
-  return String(value || "").replace(/\s+/g, " ").slice(0, 160);
+function safeValue(value, limit = 160) {
+  return String(value || "").replace(/\s+/g, " ").slice(0, limit);
 }
 
 function findGuardrail(text) {
@@ -686,7 +877,7 @@ function hasSensitiveSignal(text) {
   return sensitivePatterns.some((pattern) => pattern.test(text));
 }
 
-function buildTrace({ userText, activeModule, guardrail, sensitive, profile }) {
+function buildTrace({ userText, activeModule, guardrail, sensitive, profile, authenticated }) {
   const profileCompleteness = Object.entries(profile).filter(([, value]) => value).length;
   const missingLowRiskFields = ["地区", "行业", "经营阶段", "资金用途"].filter((key) => !profile[key]).slice(0, 3);
   return {
@@ -697,7 +888,8 @@ function buildTrace({ userText, activeModule, guardrail, sensitive, profile }) {
     sensitive: sensitive ? "检测到敏感信息风险" : "未检测到敏感信息",
     profileCompleteness: `${profileCompleteness}/8`,
     missingLowRiskFields,
-    outputFrame: modules[activeModule].outputFrame
+    outputFrame: modules[activeModule].outputFrame,
+    session: authenticated ? "已登录保存" : "临时会话"
   };
 }
 
@@ -885,11 +1077,289 @@ function normalizeReply({ reply, userText, activeModule, profile, memory, sensit
   return cleaned;
 }
 
+function ensureStoreFile() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(STORE_FILE)) {
+    const initial = { version: 1, users: [], sessions: [] };
+    fs.writeFileSync(STORE_FILE, JSON.stringify(initial, null, 2));
+  }
+}
+
+function readStore() {
+  ensureStoreFile();
+  try {
+    const raw = fs.readFileSync(STORE_FILE, "utf8");
+    const parsed = JSON.parse(raw || "{}");
+    const normalized = normalizeStore(parsed);
+    const now = Date.now();
+    const nextSessions = normalized.sessions.filter((item) => new Date(item.expiresAt).getTime() > now);
+    if (nextSessions.length !== normalized.sessions.length) {
+      normalized.sessions = nextSessions;
+      writeStore(normalized);
+    }
+    return normalized;
+  } catch {
+    const fallback = { version: 1, users: [], sessions: [] };
+    writeStore(fallback);
+    return fallback;
+  }
+}
+
+function writeStore(store) {
+  ensureStoreFile();
+  fs.writeFileSync(STORE_FILE, JSON.stringify(normalizeStore(store), null, 2));
+}
+
+function normalizeStore(store) {
+  return {
+    version: 1,
+    users: Array.isArray(store.users) ? store.users : [],
+    sessions: Array.isArray(store.sessions) ? store.sessions : []
+  };
+}
+
+function getSessionContext(req) {
+  const store = readStore();
+  const cookies = parseCookies(req.headers.cookie || "");
+  const sessionId = cookies[SESSION_COOKIE_NAME];
+
+  if (!sessionId) {
+    return { store, sessionId: "", session: null, user: null };
+  }
+
+  const session = store.sessions.find((item) => item.id === sessionId);
+  if (!session) {
+    return { store, sessionId, session: null, user: null };
+  }
+
+  const user = store.users.find((item) => item.id === session.userId) || null;
+  if (!user) {
+    store.sessions = store.sessions.filter((item) => item.id !== sessionId);
+    writeStore(store);
+    return { store, sessionId, session: null, user: null };
+  }
+
+  return { store, sessionId, session, user };
+}
+
+function parseCookies(header) {
+  return String(header || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const index = part.indexOf("=");
+      if (index === -1) return acc;
+      const key = part.slice(0, index).trim();
+      const value = decodeURIComponent(part.slice(index + 1).trim());
+      if (key) acc[key] = value;
+      return acc;
+    }, {});
+}
+
+function createSession(store, userId) {
+  const now = Date.now();
+  const session = {
+    id: crypto.randomBytes(24).toString("hex"),
+    userId,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + SESSION_TTL_MS).toISOString()
+  };
+
+  store.sessions = store.sessions.filter((item) => item.userId !== userId);
+  store.sessions.push(session);
+  return session.id;
+}
+
+function buildSessionCookie(req, sessionId) {
+  const parts = [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
+  ];
+
+  if (isSecureRequest(req)) {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
+}
+
+function buildClearSessionCookie(req) {
+  const parts = [
+    `${SESSION_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0"
+  ];
+
+  if (isSecureRequest(req)) {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
+}
+
+function isSecureRequest(req) {
+  return String(req.headers["x-forwarded-proto"] || "").toLowerCase() === "https";
+}
+
+function normalizeUsername(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned || /\s/.test(cleaned) || cleaned.length < 2 || cleaned.length > 24) {
+    return "";
+  }
+  return cleaned;
+}
+
+function normalizeDisplayName(value) {
+  return safeValue(value || "小微用户", 24) || "小微用户";
+}
+
+function findUserByUsername(store, username) {
+  return store.users.find((item) => item.usernameKey === String(username || "").toLowerCase()) || null;
+}
+
+function createPasswordHash(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = hashPassword(password, salt);
+  return { salt, hash };
+}
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString("hex");
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  const hashBuffer = Buffer.from(hashPassword(password, salt), "hex");
+  const expectedBuffer = Buffer.from(expectedHash, "hex");
+  if (hashBuffer.length !== expectedBuffer.length) return false;
+  return crypto.timingSafeEqual(hashBuffer, expectedBuffer);
+}
+
+function presentUser(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    createdAt: user.createdAt
+  };
+}
+
+function createDefaultMemory() {
+  return {
+    version: DEFAULT_MEMORY_VERSION,
+    core: {
+      mainBusiness: "",
+      industry: "",
+      region: "",
+      mainChallenges: "",
+      currentGoal: "",
+      advantages: "",
+      marketSituation: "",
+      companyResources: "",
+      teamCharacteristics: "",
+      companyVision: "",
+      companyStrategy: "",
+      industryCompetitiveness: ""
+    },
+    profile: {
+      companyHistory: "",
+      communicationStyle: "",
+      userPreferences: [],
+      focusArea: "",
+      targetAmount: ""
+    },
+    interactions: [],
+    meta: {
+      intakeComplete: false,
+      updatedAt: ""
+    }
+  };
+}
+
+function normalizeStoredMemory(memory) {
+  const sanitized = sanitizeMemory(memory || {});
+  const merged = mergeMemory(createDefaultMemory(), sanitized);
+  merged.version = DEFAULT_MEMORY_VERSION;
+  merged.meta.updatedAt = sanitized.meta.updatedAt || merged.meta.updatedAt || new Date().toISOString();
+  return merged;
+}
+
+function mergeAccountMemory(current, incoming) {
+  const base = normalizeStoredMemory(current);
+  const patch = normalizeStoredMemory(incoming);
+  const next = createDefaultMemory();
+
+  next.version = DEFAULT_MEMORY_VERSION;
+
+  for (const key of Object.keys(next.core)) {
+    next.core[key] = patch.core[key] || base.core[key] || "";
+  }
+
+  for (const key of ["companyHistory", "communicationStyle", "focusArea", "targetAmount"]) {
+    next.profile[key] = patch.profile[key] || base.profile[key] || "";
+  }
+
+  next.profile.userPreferences = dedupeStrings([
+    ...(base.profile.userPreferences || []),
+    ...(patch.profile.userPreferences || [])
+  ]).slice(-5);
+
+  next.interactions = dedupeInteractions([
+    ...(base.interactions || []),
+    ...(patch.interactions || [])
+  ]).slice(-8);
+
+  next.meta.intakeComplete = Boolean(base.meta.intakeComplete || patch.meta.intakeComplete);
+  next.meta.updatedAt = new Date().toISOString();
+
+  return next;
+}
+
+function dedupeStrings(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function dedupeInteractions(items) {
+  const seen = new Set();
+  const result = [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    const key = `${item.at || ""}|${item.moduleTitle || ""}|${item.question || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.unshift(item);
+  }
+  return result;
+}
+
+function mergeMemory(base, patch) {
+  return {
+    ...base,
+    ...patch,
+    core: { ...base.core, ...(patch.core || {}) },
+    profile: { ...base.profile, ...(patch.profile || {}) },
+    interactions: Array.isArray(patch.interactions) ? patch.interactions : base.interactions,
+    meta: { ...base.meta, ...(patch.meta || {}) }
+  };
+}
+
 function serveStatic(requestPath, res, headOnly = false) {
   const cleanPath = requestPath === "/" ? "/index.html" : requestPath;
   const fullPath = path.normalize(path.join(__dirname, cleanPath));
 
-  if (!fullPath.startsWith(__dirname)) {
+  if (!fullPath.startsWith(__dirname) || fullPath.startsWith(DATA_DIR)) {
     return sendJson(res, 403, { error: "Forbidden" });
   }
 
@@ -907,11 +1377,12 @@ function serveStatic(requestPath, res, headOnly = false) {
   });
 }
 
-function sendJson(res, status, payload, headOnly = false) {
+function sendJson(res, status, payload, headOnly = false, extraHeaders = {}) {
   const data = JSON.stringify(payload);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(data)
+    "Content-Length": Buffer.byteLength(data),
+    ...extraHeaders
   });
   res.end(headOnly ? undefined : data);
 }
