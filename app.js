@@ -1160,7 +1160,8 @@ function pickBoardSections(sections) {
     /先给结论|现状判断|风险等级|案例背景|名称\/简介|文档初稿/,
     /你现在可以做什么|改进动作|服务动作|核验动作|可借鉴点|官方入口|可了解路径|工具模板|首屏问题/,
     /需要准备的材料\/信息|材料清单|待确认字段|标签|审核风险/,
-    /风险提醒|风险点|边界提醒|风险边界/
+    /风险提醒|风险点|边界提醒|风险边界/,
+    /补充参考|公开实践参考/
   ];
 
   const selected = [];
@@ -1176,7 +1177,7 @@ function pickBoardSections(sections) {
   }
 
   const fallback = sections.filter((section, index) => !used.has(index) && !excluded.test(section.title));
-  return [...selected, ...fallback].slice(0, 4);
+  return [...selected, ...fallback].slice(0, 5);
 }
 
 function extractSectionBody(sections, pattern) {
@@ -1187,6 +1188,7 @@ function extractSectionBody(sections, pattern) {
 function cardToneForTitle(title) {
   if (/风险|边界/.test(title)) return "tone-risk";
   if (/材料|字段|标签/.test(title)) return "tone-material";
+  if (/补充参考|公开实践/.test(title)) return "tone-reference";
   if (/下一步|动作|入口|清单|结论/.test(title)) return "tone-action";
   return "";
 }

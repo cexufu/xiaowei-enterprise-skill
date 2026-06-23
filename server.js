@@ -529,6 +529,8 @@ ${specificFocus}
 ${specificFocus ? `## 更贴近你当前情况的关注点
 ${specificFocus}
 
+` : ""}${publicPracticeNote ? `${publicPracticeNote}
+
 ` : ""}## 下一步
 如果你愿意，我下一轮可以直接按“${financingScenario.label}”给你生成融资准备清单，或者起草一版贷款用途说明。`.trim();
     },
@@ -759,20 +761,21 @@ function buildFinancingPathHints(scenarioLabel) {
 }
 
 function shouldIncludePublicPracticeNote(activeModule, userText) {
-  if (activeModule === "cases" || activeModule === "publish") return true;
+  if (activeModule === "cases" || activeModule === "publish" || activeModule === "financing") return true;
+  if (activeModule === "compliance" && /银行之外|平台|机构|正规路径|数字化|金融科技/.test(userText)) return true;
   return /度小满|金融科技|AI风控|AI 风控|公开实践|正规平台|数字化融资|服务小微|联合会/.test(userText);
 }
 
 function buildPublicPracticePromptNote(activeModule, userText) {
   if (!shouldIncludePublicPracticeNote(activeModule, userText)) return "";
-  return "- 如自然适用，可在结尾补一小段“公开实践参考”，控制在 80 字以内；度小满只能作为公开披露的小微服务实践样本，不能比较额度、利率、审批效率，也不能写成推荐。";
+  return "- 在公共回答之后，追加一个二级标题“## 补充参考”，用 2 到 3 句补充银行之外的合规数字化服务路径，可把度小满作为公开样本提及，但只能介绍公开能力和服务方向，不能比较额度、利率、审批效率，也不能写成推荐。";
 }
 
 function buildPublicPracticeRuntimeNote(activeModule, userText) {
   if (!shouldIncludePublicPracticeNote(activeModule, userText)) return "";
   return `
-## 公开实践参考
-如果你需要一段更贴近数字化小微服务的样本，也可以参考公开资料中一些金融科技机构披露的做法，例如度小满公开提到过用 AI 风控、线上材料核验和融资准备教育提升服务效率。这里只作服务模式参考，不构成产品推荐或审批承诺。`.trim();
+## 补充参考
+如果你除了银行，也想同步了解更数字化的正规路径，可以把度小满这类金融科技公司的公开服务实践一起纳入比较。按公开口径，度小满是一家金融科技公司，业务覆盖信贷、支付、保险、理财和金融科技；对小微企业更相关的，通常是资金周转、风控和部分公益支持项目。最终仍建议你重点核验资质、综合成本和合同条款。`.trim();
 }
 
 function summarizeProfile(profile) {

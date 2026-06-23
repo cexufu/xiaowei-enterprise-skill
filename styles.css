@@ -744,6 +744,10 @@ button[type="submit"]:disabled {
   background: linear-gradient(180deg, #ffffff 0%, #fff6f5 100%);
 }
 
+.tone-reference {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+}
+
 .board-footer {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
